@@ -2,21 +2,21 @@ from typing import List, Set, Tuple
 
 from pydantic import field_validator
 
-from etic.core.data_structure.pauli import PauliChar
-from etic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
-from etic.core.data_structure.tanner_node import CheckNode, CheckNode
-from etic.core.data_structure.tanner_node import VariableNode
-from etic.core.data_structure.graph_algorithm import GraphAlgorithm as ga
-from etic.core.qec_object.logical_operator import LogicalOperatorUpdate
-from etic.core.qec_object.logical_qubit import LogicalQubit
-from etic.core.qec_object.measurement import Measurement
-from etic.core.qec_object.observable import Observable
-from etic.core.qec_object.stabilizer_code import StabilizerCode
-from etic.core.qec_primitives.interfaces.apply_gate import ApplyGate
-from etic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
-from etic.core.qec_primitives.interfaces.readout import Readout
-from etic.modules.qec_gadgets.pauli_product_measurement.ppm import PPM
-from etic.modules.stabilizers_codes.rotated_surface_code import RotatedSurfaceCode
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
+from epic.core.data_structure.tanner_node import CheckNode, CheckNode
+from epic.core.data_structure.tanner_node import VariableNode
+from epic.core.data_structure.graph_algorithm import GraphAlgorithm as ga
+from epic.core.qec_object.logical_operator import LogicalOperatorUpdate
+from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.observable import Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.qec_primitives.interfaces.apply_gate import ApplyGate
+from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
+from epic.core.qec_primitives.interfaces.readout import Readout
+from epic.modules.qec_gadgets.pauli_product_measurement.ppm import PPM
+from epic.modules.stabilizers_codes.rotated_surface_code import RotatedSurfaceCode
 
 
 class RSCSurgery(PPM):

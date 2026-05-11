@@ -3,8 +3,8 @@ from uuid import uuid4
 
 from pydantic import Field, model_validator
 
-from etic.core.data_structure import PauliChar, PauliString, TannerGraph, VariableNode
-from etic.core.qec_object import LogicalOperator, LogicalQubit, StabilizerCode
+from epic.core.data_structure import PauliChar, PauliString, TannerGraph, VariableNode
+from epic.core.qec_object import LogicalOperator, LogicalQubit, StabilizerCode
 
 
 class NullCode(StabilizerCode):

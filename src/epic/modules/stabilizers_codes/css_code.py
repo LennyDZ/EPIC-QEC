@@ -2,15 +2,15 @@ from typing import Dict, List, Self, Tuple
 
 import numpy as np
 
-from etic.core.data_structure import PauliChar
-from etic.core.data_structure.pauli import PauliString
-from etic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
-from etic.core.data_structure.tanner_node import CheckNode, VariableNode
-from etic.core.qec_object import StabilizerCode
+from epic.core.data_structure import PauliChar
+from epic.core.data_structure.pauli import PauliString
+from epic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
+from epic.core.data_structure.tanner_node import CheckNode, VariableNode
+from epic.core.qec_object import StabilizerCode
 from pydantic import model_validator
 
-from etic.core.qec_object.logical_operator import LogicalOperator
-from etic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.logical_operator import LogicalOperator
+from epic.core.qec_object.logical_qubit import LogicalQubit
 
 
 class CSSCode(StabilizerCode):

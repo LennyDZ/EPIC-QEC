@@ -5,9 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
-from etic.core.data_structure.tanner_node import TannerNode
-from etic.core.qec_object.detector import DetectorGraphPort, QubitPortState
-
+from ..data_structure.tanner_node import TannerNode
+from ..qec_object.detector import DetectorGraphPort, QubitPortState
 from ..compilation.measurement_record import MeasurementRecordView
 from ..compilation.quantum_memory import QuantumMemory
 from ..qec_object import Detector, Measurement

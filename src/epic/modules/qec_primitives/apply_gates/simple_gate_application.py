@@ -1,12 +1,16 @@
 from typing import List, Set, Tuple, Union, cast
 from uuid import UUID
 
-from etic.core.compilation import QuantumMemory
-from etic.core.compilation.measurement_record import MeasurementRecordView
-from etic.core.data_structure import TannerNode
-from etic.core.qec_object import Detector, Measurement
-from etic.core.qec_object.detector import DetectorGraphPort, NodeKnowledge, QubitPortState
-from etic.core.qec_primitives.interfaces import ApplyGate, PrimitiveImplementation
+from epic.core.compilation import QuantumMemory
+from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.data_structure import TannerNode
+from epic.core.qec_object import Detector, Measurement
+from epic.core.qec_object.detector import (
+    DetectorGraphPort,
+    NodeKnowledge,
+    QubitPortState,
+)
+from epic.core.qec_primitives.interfaces import ApplyGate, PrimitiveImplementation
 
 
 class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):

@@ -3,12 +3,12 @@ from uuid import UUID
 
 from pydantic import model_validator
 
-from etic.core.data_structure import PauliChar, TannerGraph
-from etic.core.language import LogicGadget
-from etic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable
-from etic.core.qec_object.logical_operator import LogicalOperator
-from etic.core.qec_object.logical_qubit import LogicalQubit
-from etic.core.qec_primitives.interfaces import QECPrimitive, Readout
+from epic.core.data_structure import PauliChar, TannerGraph
+from epic.core.language import LogicGadget
+from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable
+from epic.core.qec_object.logical_operator import LogicalOperator
+from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_primitives.interfaces import QECPrimitive, Readout
 
 
 class NaiveLogicalMeasurement(LogicGadget):

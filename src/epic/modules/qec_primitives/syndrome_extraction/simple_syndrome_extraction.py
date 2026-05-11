@@ -3,14 +3,17 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 import warnings
 
-from etic.core.qec_object.detector import NodeKnowledge
-from etic.core.compilation.measurement_record import MeasurementRecord, MeasurementRecordView
-from etic.core.compilation.quantum_memory import QuantumMemory
-from etic.core.data_structure import PauliChar, PauliEigenState, TannerNode
-from etic.core.data_structure.tanner_node import CheckNode
-from etic.core.qec_object import Detector, Measurement
-from etic.core.qec_object.detector import DetectorGraphPort, QubitPortState
-from etic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
+from epic.core.qec_object.detector import NodeKnowledge
+from epic.core.compilation.measurement_record import (
+    MeasurementRecord,
+    MeasurementRecordView,
+)
+from epic.core.compilation.quantum_memory import QuantumMemory
+from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode
+from epic.core.data_structure.tanner_node import CheckNode
+from epic.core.qec_object import Detector, Measurement
+from epic.core.qec_object.detector import DetectorGraphPort, QubitPortState
+from epic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
 
 
 class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
