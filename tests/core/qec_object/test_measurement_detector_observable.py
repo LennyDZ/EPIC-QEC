@@ -5,8 +5,8 @@ from uuid import UUID
 
 import pytest
 
-from core.qec_object.detector import NodeKnowledge
-from core.qec_object.observable import Observable
+from epic.core.qec_object.detector import NodeKnowledge
+from epic.core.qec_object.observable import Observable
 
 
 class TestMeasurement:

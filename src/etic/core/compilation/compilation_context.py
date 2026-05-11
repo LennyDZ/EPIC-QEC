@@ -5,12 +5,12 @@ from typing import Any, Dict, List, Set, Tuple, TypeVar, overload
 from uuid import UUID
 import warnings
 
-from etic.core.qec_object.detector import (
+from epic.core.qec_object.detector import (
     Detector,
     DetectorGraphPort,
     QubitPortState,
 )
-from etic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.measurement import Measurement
 
 from .compiled_experiment import CompiledExperiment
 from .measurement_record import MeasurementRecord

@@ -1,6 +1,6 @@
 ## QEC Primitives
 
-This guide presents details on how to create an implementation for a primitive in ETIC-QEC. It is important to understand the separation between a primitive instruction and its implementations. A `QECPrimitive` instruction is an abstract interface that describes the meaning of the instruction. It can then be implemented by several `PrimitiveImplementation`s that describe different ways of performing it.
+This guide presents details on how to create an implementation for a primitive in EPIC-QEC. It is important to understand the separation between a primitive instruction and its implementations. A `QECPrimitive` instruction is an abstract interface that describes the meaning of the instruction. It can then be implemented by several `PrimitiveImplementation`s that describe different ways of performing it.
 
 All `QECPrimitive` instructions share a common structure with:
 - a target, which is a `TannerGraph`
@@ -8,7 +8,7 @@ All `QECPrimitive` instructions share a common structure with:
 - a distance (indicative only)
 - an ID
 
-There are four instructions defined by ETIC-QEC:
+There are four instructions defined by EPIC-QEC:
 - `ApplyGate(target_nodes, gates)`: simply applies the given gates to the given nodes of the Tanner graph.
 - `ExtractSyndrome(rounds, ancilla_reset_state)`: performs `rounds` rounds of measurement of the checks, or syndromes, in the Tanner graph. One can also specify the state in which the ancilla used to measure the checks are reset between rounds.
 - `Readout(basis)`: Measure and reset all nodes in the given Tanner graph.

@@ -1,6 +1,6 @@
-# ETIC-QEC
+# EPIC-QEC
 
-ETIC (Experimental Toolkit for Implementing and Compiling) QEC is a Python package that aims to facilitate benchmarking of QEC solutions with ciruict level noise. It provide a core structure that allows the users to build fully customized experiments that includes all the components of quantum error correction into an exiting quantum algorithm. The construction allows for wide range of customization, including which stabilizers codes to use, how to measure the syndromes of the codes, how to perform each logical operations, etc...
+EPIC (Experimental Package for Implementing and Compiling) QEC is a Python package that aims to facilitate benchmarking of QEC solutions with ciruict level noise. It provide a core structure that allows the users to build fully customized experiments that includes all the components of quantum error correction into an exiting quantum algorithm. The construction allows for wide range of customization, including which stabilizers codes to use, how to measure the syndromes of the codes, how to perform each logical operations, etc...
 
 The notebook [getting_started.ipynb](docs/getting_started.ipynb) provide a brief overview of the package's capabilities.
 
@@ -25,6 +25,10 @@ You can then run the test suite with:
 ```bash
 pytest
 ```
+
+## License
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the full text.
 
 
 

@@ -4,10 +4,10 @@ from uuid import uuid4
 
 import pytest
 
-from core.compilation.compiled_experiment import CompiledExperiment
-from core.compilation.measurement_record import MeasurementRecord
-from core.qec_object.measurement import Measurement
-from core.qec_object.observable import Observable
+from epic.core.compilation.compiled_experiment import CompiledExperiment
+from epic.core.compilation.measurement_record import MeasurementRecord
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.observable import Observable
 
 
 class TestCompiledExperiment:

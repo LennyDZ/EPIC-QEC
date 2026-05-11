@@ -7,15 +7,15 @@ from uuid import UUID
 import pytest
 from pydantic import Field
 
-from core.compilation.qec_compiler import QECCompiler
-from core.data_structure.tanner_graph import TannerGraph
-from core.qec_object.detector import NodeKnowledge, QubitPortState
-from core.qec_object.logical_operator import LogicalOperatorUpdate
-from core.qec_object.measurement import Measurement
-from core.qec_object.observable import Observable
-from core.qec_object.stabilizer_code import StabilizerCode
-from core.language.qec_gadget import CodeGadget, LogicGadget
-from core.qec_primitives.interfaces.qec_primitive import QECPrimitive
+from epic.core.compilation.qec_compiler import QECCompiler
+from epic.core.data_structure.tanner_graph import TannerGraph
+from epic.core.qec_object.detector import NodeKnowledge, QubitPortState
+from epic.core.qec_object.logical_operator import LogicalOperatorUpdate
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.observable import Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.language.qec_gadget import CodeGadget, LogicGadget
+from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
 from debug.warnings import CodeBelowDistanceWarning
 
 

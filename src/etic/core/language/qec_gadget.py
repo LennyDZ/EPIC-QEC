@@ -4,8 +4,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from etic.core.compilation.measurement_record import MeasurementRecordView
-from etic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.qec_object.logical_qubit import LogicalQubit
 
 from ..qec_object import (
     LogicalOperator,

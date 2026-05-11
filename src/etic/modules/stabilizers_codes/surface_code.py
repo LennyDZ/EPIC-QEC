@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from etic.modules.stabilizers_codes.css_code import CSSCode
+from epic.modules.stabilizers_codes.css_code import CSSCode
 
 
 class SurfaceCode(CSSCode):

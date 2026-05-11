@@ -1,6 +1,6 @@
-## QEC Gadget in ETIC-QEC
+## QEC Gadget in EPIC-QEC
 
-This guide presents details on how to implement a gadget in ETIC-QEC. All QEC gadgets inherit from one of the four `QECGadget` subclasses:
+This guide presents details on how to implement a gadget in EPIC-QEC. All QEC gadgets inherit from one of the four `QECGadget` subclasses:
 - `LogicGadget`
 - `CodeGadget`
 - `AllocCode`

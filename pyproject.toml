@@ -1,13 +1,15 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "etic"
+name = "epic"
 version = "0.1.2"
 description = "Package for compiling quantum error correction procedures."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
 	"numpy>=1.26.4",
@@ -34,8 +36,8 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
-	"etic",
-	"etic.*",
+	"epic",
+	"epic.*",
 	"core",
 	"core.*",
 	"modules",

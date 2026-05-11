@@ -1,8 +1,8 @@
 from collections import deque
 
-from etic.core.data_structure.pauli import PauliChar
-from etic.core.data_structure.tanner_graph import TannerGraph
-from etic.core.data_structure.tanner_node import CheckNode, TannerNode
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.data_structure.tanner_graph import TannerGraph
+from epic.core.data_structure.tanner_node import CheckNode, TannerNode
 
 
 class GraphAlgorithm:

@@ -2,10 +2,10 @@
 
 import pytest
 
-from core.data_structure.graph_algorithm import GraphAlgorithm
-from core.data_structure.pauli import PauliChar
-from core.data_structure.tanner_graph import TannerEdge, TannerGraph
-from core.data_structure.tanner_node import CheckNode, VariableNode
+from epic.core.data_structure.graph_algorithm import GraphAlgorithm
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
+from epic.core.data_structure.tanner_node import CheckNode, VariableNode
 
 
 @pytest.fixture

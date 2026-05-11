@@ -1,6 +1,6 @@
 """Tests for logical_qubit module."""
 
-from etic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.logical_qubit import LogicalQubit
 
 
 class TestLogicalQubit:

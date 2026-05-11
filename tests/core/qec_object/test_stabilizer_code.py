@@ -2,8 +2,8 @@
 
 import pytest
 
-from core.qec_object.logical_qubit import LogicalQubit
-from core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.stabilizer_code import StabilizerCode
 
 
 class TestStabilizerCode:

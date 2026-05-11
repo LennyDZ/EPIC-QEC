@@ -2,12 +2,12 @@ from pathlib import Path
 from typing import Any, List, Mapping, Sequence, Tuple
 import warnings
 
-from etic.core.language.qec_gadget import AllocCode, CodeGadget, FreeCode, LogicGadget
-from etic.core.qec_object.logical_qubit import LogicalQubit
-from etic.core.qec_object.observable import Observable
-from etic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.language.qec_gadget import AllocCode, CodeGadget, FreeCode, LogicGadget
+from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.observable import Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
 from debug.warnings import CodeBelowDistanceWarning
-from etic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
+from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
 
 from .compiled_experiment import CompiledExperiment
 from .compilation_context import CompilationContext

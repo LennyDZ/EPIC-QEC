@@ -11,9 +11,9 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import ConnectionPatch
 from pypdf import PdfReader, PdfWriter
 
-from etic.core.data_structure.pauli import PauliChar
-from etic.core.data_structure.tanner_graph import TannerGraph
-from etic.core.data_structure.tanner_node import TannerNode
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.data_structure.tanner_graph import TannerGraph
+from epic.core.data_structure.tanner_node import TannerNode
 
 HighlightNodeRef = TannerNode | UUID | str
 HighlightNodeSet = Set[HighlightNodeRef]

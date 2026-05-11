@@ -3,7 +3,7 @@ from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
-from etic.core.experiment.noise_model import NoiseModel
+from epic.core.experiment.noise_model import NoiseModel
 
 from ..qec_object import Measurement
 from .measurement_record import MeasurementRecord

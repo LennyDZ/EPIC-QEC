@@ -1,8 +1,8 @@
 """Tests for logical_operator module."""
 
-from core.data_structure.pauli import PauliChar, PauliString
-from core.data_structure.tanner_node import VariableNode
-from core.qec_object.logical_operator import LogicalOperator, LogicalOperatorUpdate
+from epic.core.data_structure.pauli import PauliChar, PauliString
+from epic.core.data_structure.tanner_node import VariableNode
+from epic.core.qec_object.logical_operator import LogicalOperator, LogicalOperatorUpdate
 
 
 class TestLogicalOperator:

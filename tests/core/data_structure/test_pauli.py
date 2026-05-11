@@ -1,7 +1,7 @@
 """Tests for pauli module."""
 
 import pytest
-from core.data_structure.pauli import PauliChar, PauliEigenState, PauliString
+from epic.core.data_structure.pauli import PauliChar, PauliEigenState, PauliString
 
 
 class TestPauliChar:

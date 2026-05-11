@@ -44,7 +44,7 @@ wheels = [
 ]
 
 [[package]]
-name = "etic"
+name = "epic"
 version = "0.1.2"
 source = { editable = "." }
 dependencies = [

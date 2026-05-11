@@ -6,11 +6,11 @@ from uuid import uuid4
 
 import pytest
 
-from core.compilation.compilation_context import CompilationContext
-from core.qec_object.detector import NodeKnowledge, QubitPortState
-from core.qec_object.measurement import Measurement
-from core.qec_object.observable import Observable
-from core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.compilation.compilation_context import CompilationContext
+from epic.core.qec_object.detector import NodeKnowledge, QubitPortState
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.observable import Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
 
 
 @pytest.fixture

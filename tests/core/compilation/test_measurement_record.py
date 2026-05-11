@@ -2,8 +2,8 @@ from uuid import uuid4
 
 import pytest
 
-from core.compilation.measurement_record import MeasurementRecord
-from core.qec_object.measurement import Measurement
+from epic.core.compilation.measurement_record import MeasurementRecord
+from epic.core.qec_object.measurement import Measurement
 
 
 @pytest.fixture

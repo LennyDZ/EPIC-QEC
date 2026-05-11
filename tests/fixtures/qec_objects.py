@@ -5,20 +5,20 @@ from uuid import uuid4
 from scipy.sparse import csr_matrix
 import pytest
 
-from core.compilation.compiled_experiment import CompiledExperiment
-from core.compilation.measurement_record import MeasurementRecord
-from core.compilation.qec_compiler import QECCompiler
-from core.data_structure.pauli import PauliChar, PauliString
-from core.data_structure.tanner_graph import TannerGraph
-from core.data_structure.tanner_node import VariableNode
-from core.qec_object.detector import Detector
-from core.qec_object.logical_operator import LogicalOperator
-from core.qec_object.logical_qubit import LogicalQubit
-from core.qec_object.measurement import Measurement
-from core.qec_object.observable import Observable
-from core.qec_object.stabilizer_code import StabilizerCode
-from core.language.qec_gadget import AllocCode, FreeCode
-from experiment.noise_model import NoiseModel
+from epic.core.compilation.compiled_experiment import CompiledExperiment
+from epic.core.compilation.measurement_record import MeasurementRecord
+from epic.core.compilation.qec_compiler import QECCompiler
+from epic.core.data_structure.pauli import PauliChar, PauliString
+from epic.core.data_structure.tanner_graph import TannerGraph
+from epic.core.data_structure.tanner_node import VariableNode
+from epic.core.qec_object.detector import Detector
+from epic.core.qec_object.logical_operator import LogicalOperator
+from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.observable import Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.language.qec_gadget import AllocCode, FreeCode
+from epic.core.experiment.noise_model import NoiseModel
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""Public package facade for etic."""
+"""Public package facade for epic."""
 
 from importlib.metadata import PackageNotFoundError, version
 
@@ -50,7 +50,7 @@ from .modules import (
 )
 
 try:
-    __version__ = version("etic")
+    __version__ = version("epic")
 except PackageNotFoundError:
     __version__ = "0+unknown"
 

@@ -1,6 +1,6 @@
 # Core compilation logic
 
-ETIC-QEC compilation logic is implemented by the `QECCompiler` object. A compiler is built according to a
+EPIC-QEC compilation logic is implemented by the `QECCompiler` object. A compiler is built according to a
 specific configuration and can then process any program, which is a list of `QECGadget`s. It holds
 a `CompilationContext`, which contains the various registers required for compilation, as well as a `PrimitiveCompiler` object, which will automatically allow the compiler to use the specific primitives implementations given in the configuration. The context starts empty and is updated at each step. The logic is very simple and can be summarized
 by the following pseudocode:

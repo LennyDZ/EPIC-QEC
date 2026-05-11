@@ -5,8 +5,8 @@ from typing import Any, cast
 
 import pytest
 
-from core.compilation.quantum_memory import QuantumMemory
-from core.data_structure.tanner_node import VariableNode
+from epic.core.compilation.quantum_memory import QuantumMemory
+from epic.core.data_structure.tanner_node import VariableNode
 
 
 @pytest.fixture

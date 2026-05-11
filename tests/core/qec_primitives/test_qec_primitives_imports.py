@@ -1,5 +1,5 @@
-from core.qec_primitives import PrimitiveCompiler, PrimitiveRegistry
-from core.qec_primitives.interfaces import (
+from epic.core.qec_primitives import PrimitiveCompiler, PrimitiveRegistry
+from epic.core.qec_primitives.interfaces import (
     ApplyGate,
     CustomPrimitive,
     ExtractSyndrome,
