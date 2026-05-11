@@ -5,8 +5,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
-from etic.core.qec_object.detector import DetectorGraphPort
-
+from ...qec_object.detector import DetectorGraphPort
 from ...compilation.measurement_record import MeasurementRecordView
 from ...compilation.quantum_memory import QuantumMemory
 from ...data_structure import TannerGraph

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from etic.core.data_structure.pauli import PauliChar
+from ...data_structure.pauli import PauliChar
 from .qec_primitive import QECPrimitive
 
 
