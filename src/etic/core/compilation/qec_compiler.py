@@ -7,6 +7,7 @@ from etic.core.qec_object.logical_qubit import LogicalQubit
 from etic.core.qec_object.observable import Observable
 from etic.core.qec_object.stabilizer_code import StabilizerCode
 from debug.warnings import CodeBelowDistanceWarning
+from etic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
 
 from .compiled_experiment import CompiledExperiment
 from .compilation_context import CompilationContext
@@ -50,8 +51,6 @@ class QECCompiler:
             observables: Observables emitted by the gadget, if any.
             gadget_tag: Human-readable gadget label used in the visualization title.
         """
-        from etic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
-
         highlights = []
         systems: Mapping[tuple[int, int], str] = {}
         primitive_target = primitive.target.model_copy(deep=True)
