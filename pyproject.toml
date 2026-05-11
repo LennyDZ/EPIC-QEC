@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "etic"
+version = "0.1.2"
+description = "Package for compiling quantum error correction procedures."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+	"numpy>=1.26.4",
+	"pydantic>=2.13.3",
+	"pymatching>=2.3.1",
+	"sinter==1.14.0",
+	"stim>=1.15.0",
+]
+
+[dependency-groups]
+dev = [
+	"black>=26.3.1",
+	"pytest",
+	"pytest-cov",
+]
+visualization = [
+	"matplotlib>=3.10.8",
+	"pypdf>=5.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+	"etic",
+	"etic.*",
+	"core",
+	"core.*",
+	"modules",
+	"modules.*",
+	"experiment",
+	"experiment.*",
+	"debug",
+	"debug.*",
+	"visualization",
+	"visualization.*",
+]
+namespaces = true
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["src", "."]
+addopts = "-ra"

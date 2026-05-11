@@ -1,0 +1,105 @@
+"""Public package facade for etic."""
+
+from importlib.metadata import PackageNotFoundError, version
+
+from .core.compilation import CompiledExperiment, CompilationContext, MeasurementRecord, QECCompiler, QuantumMemory
+from .core.data_structure import (
+    CheckNode,
+    GraphAlgorithm,
+    PauliChar,
+    PauliEigenState,
+    PauliString,
+    TannerEdge,
+    TannerGraph,
+    TannerNode,
+    VariableNode,
+)
+from .core.experiment import (
+    NoiseApplicationMode,
+    NoiseInstruction,
+    NoiseModel,
+    NoiseSpecification,
+    StimLikeNoiseModel,
+)
+from .core.language import AllocCode, CodeGadget, FreeCode, LogicGadget, QECGadget
+from .core.qec_object import (
+    Detector,
+    LogicalOperator,
+    LogicalOperatorUpdate,
+    LogicalQubit,
+    Measurement,
+    Observable,
+    StabilizerCode,
+)
+from .modules import (
+    CSSCode,
+    EmptyProcedure,
+    InitCode,
+    NaiveLogicalMeasurement,
+    NaiveReadout,
+    NullCode,
+    RSCSurgery,
+    RSCSyndromeExtraction,
+    ReadoutCode,
+    RotatedSurfaceCode,
+    SimpleGateApplication,
+    SimpleSyndromeExtraction,
+    SurfaceCode,
+    ToricCode,
+    TransversalCNOT,
+)
+
+try:
+    __version__ = version("etic")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
+
+__all__ = [
+    "AllocCode",
+    "CSSCode",
+    "CheckNode",
+    "CodeGadget",
+    "CompilationContext",
+    "CompiledExperiment",
+    "Detector",
+    "EmptyProcedure",
+    "FreeCode",
+    "GraphAlgorithm",
+    "InitCode",
+    "LogicGadget",
+    "LogicalOperator",
+    "LogicalOperatorUpdate",
+    "LogicalQubit",
+    "Measurement",
+    "MeasurementRecord",
+    "NaiveLogicalMeasurement",
+    "NaiveReadout",
+    "NoiseApplicationMode",
+    "NoiseInstruction",
+    "NoiseModel",
+    "NoiseSpecification",
+    "NullCode",
+    "Observable",
+    "PauliChar",
+    "PauliEigenState",
+    "PauliString",
+    "QECCompiler",
+    "QECGadget",
+    "QuantumMemory",
+    "RSCSurgery",
+    "RSCSyndromeExtraction",
+    "ReadoutCode",
+    "RotatedSurfaceCode",
+    "SimpleGateApplication",
+    "SimpleSyndromeExtraction",
+    "StabilizerCode",
+    "StimLikeNoiseModel",
+    "SurfaceCode",
+    "TannerEdge",
+    "TannerGraph",
+    "TannerNode",
+    "ToricCode",
+    "TransversalCNOT",
+    "VariableNode",
+    "__version__",
+]
