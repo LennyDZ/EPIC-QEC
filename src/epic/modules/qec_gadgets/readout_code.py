@@ -1,14 +1,14 @@
 from typing import Dict, List, Tuple
 from uuid import UUID
 
-from etic.core.compilation.measurement_record import MeasurementRecordView
-from etic.core.data_structure.pauli import PauliChar
-from etic.core.language.qec_gadget import CodeGadget
-from etic.core.qec_object import LogicalOperatorUpdate, Observable
-from etic.core.qec_object.measurement import Measurement
-from etic.core.qec_object.stabilizer_code import StabilizerCode
-from etic.core.qec_primitives.interfaces import QECPrimitive
-from etic.core.qec_primitives.interfaces.readout import Readout
+from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.language.qec_gadget import CodeGadget
+from epic.core.qec_object import LogicalOperatorUpdate, Observable
+from epic.core.qec_object.measurement import Measurement
+from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.qec_primitives.interfaces import QECPrimitive
+from epic.core.qec_primitives.interfaces.readout import Readout
 
 
 class ReadoutCode(CodeGadget):

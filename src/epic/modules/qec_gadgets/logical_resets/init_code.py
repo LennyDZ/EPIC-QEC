@@ -3,13 +3,13 @@ from uuid import UUID
 
 from pydantic import Field
 
-from etic.core.compilation.measurement_record import MeasurementRecordView
-from etic.core.data_structure import PauliEigenState, TannerNode
-from etic.core.language import CodeGadget
-from etic.core.qec_object import LogicalOperatorUpdate, Observable
-from etic.core.qec_object.stabilizer_code import StabilizerCode
-from etic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive
-from etic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
+from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.data_structure import PauliEigenState, TannerNode
+from epic.core.language import CodeGadget
+from epic.core.qec_object import LogicalOperatorUpdate, Observable
+from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive
+from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
 
 
 class InitCode(CodeGadget):

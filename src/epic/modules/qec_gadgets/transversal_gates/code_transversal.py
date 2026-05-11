@@ -3,11 +3,11 @@ from uuid import UUID
 from pydantic import Field, field_validator
 from typing import Dict, List, Set, Tuple
 
-from etic.core.data_structure import TannerGraph
-from etic.core.compilation.measurement_record import MeasurementRecordView
-from etic.core.language import CodeGadget
-from etic.core.qec_object import LogicalOperatorUpdate, Observable, StabilizerCode
-from etic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive, QECProcedure
+from epic.core.data_structure import TannerGraph
+from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.language import CodeGadget
+from epic.core.qec_object import LogicalOperatorUpdate, Observable, StabilizerCode
+from epic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive, QECProcedure
 
 
 class TransversalCNOT(CodeGadget):
