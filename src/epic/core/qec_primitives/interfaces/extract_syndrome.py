@@ -59,7 +59,7 @@ class ExtractSyndrome(QECPrimitive):
                 measurement_in_detectors.append(latest)
 
             case NodeKnowledge.RX | NodeKnowledge.RZ:
-                # if it was reseted in the oposite bais, we cannot be sure about the outcome, so no detector is formed
+                # If it was reset in the opposite basis, we cannot be sure about the outcome, so no detector is formed
                 if check_knowledge.basis() != check.check_type:
                     return None
             case _:

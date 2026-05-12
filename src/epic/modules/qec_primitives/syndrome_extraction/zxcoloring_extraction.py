@@ -99,6 +99,10 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 stim_instructions.append(
                     f"RX {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
                 )
+            case _:
+                raise ValueError(
+                    f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
+                )
 
         x_coloring, x_color_count = self._color_edges(x_edges)
         z_coloring, z_color_count = self._color_edges(z_edges)
