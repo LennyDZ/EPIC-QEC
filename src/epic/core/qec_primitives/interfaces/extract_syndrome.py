@@ -63,7 +63,7 @@ class ExtractSyndrome(QECPrimitive):
                 if check_knowledge.basis() != check.check_type:
                     return None
             case _:
-                raise ValueError(f"Invalid known check state: {known_check_state}")
+                raise ValueError(f"Invalid known check state: {check_knowledge}")
 
         # Handle neighbors know state.
         extra_measurements = []
