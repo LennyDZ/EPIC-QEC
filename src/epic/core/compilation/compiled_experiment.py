@@ -64,7 +64,7 @@ class CompiledExperiment(BaseModel):
     def to_stim_program(
         self,
         observables: List[List[str]],
-        noise_model: NoiseModel,
+        noise_model: NoiseModel | None = None,
     ) -> str:
         """Render the compiled experiment as a Stim program and apply noise.
 
@@ -107,4 +107,6 @@ class CompiledExperiment(BaseModel):
 
         program = "\n".join(lines)
 
+        if noise_model is None:
+            return program
         return noise_model.apply_model(program)
