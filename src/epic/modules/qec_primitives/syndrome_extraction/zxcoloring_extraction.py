@@ -3,7 +3,7 @@ from uuid import UUID
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure.pauli import PauliEigenState
+from epic.core.data_structure.pauli import PauliChar, PauliEigenState
 from epic.core.data_structure.tanner_node import TannerNode
 from epic.core.qec_object.detector import (
     Detector,
@@ -78,9 +78,15 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 raise ValueError(
                     f"Check node {edge.check_node} does not have a check type. The Tanner Graph may not be CSS."
                 )
-            if edge.check_node.check_type == "X" or edge.pauli_checked == "X":
+            if (
+                edge.check_node.check_type == PauliChar.X
+                or edge.pauli_checked == PauliChar.X
+            ):
                 x_edges.add(edge)
-            elif edge.check_node.check_type == "Z" or edge.pauli_checked == "Z":
+            elif (
+                edge.check_node.check_type == PauliChar.Z
+                or edge.pauli_checked == PauliChar.Z
+            ):
                 z_edges.add(edge)
             else:
                 raise ValueError(
@@ -89,7 +95,7 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         # Reset ancilla qubits
         check_nodes = instruction.target.check_nodes
-        x_checks = [check for check in check_nodes if check.check_type == "X"]
+        x_checks = [check for check in check_nodes if check.check_type == PauliChar.X]
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
                 stim_instructions.append(
