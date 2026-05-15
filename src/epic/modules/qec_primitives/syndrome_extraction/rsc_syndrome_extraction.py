@@ -2,14 +2,17 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 
 
-from epic.core.qec_object.detector import NodeKnowledge
 from epic.core.compilation.measurement_record import (
     MeasurementRecordView,
 )
-from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode
-from epic.core.qec_object import Detector, Measurement
-from epic.core.qec_object.detector import DetectorGraphPort, QubitPortState
+from epic.core.qec_object import (
+    Detector,
+    Measurement,
+    DetectorGraphPort,
+    QubitPortState,
+    NodeKnowledge,
+)
 from epic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
 
 
@@ -19,7 +22,6 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
     def compile(
         self,
         instruction: ExtractSyndrome,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -33,22 +35,30 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
 
-        to_alloc: List[TannerNode] = []
-        for n in instruction.target.variable_nodes | instruction.target.check_nodes:
-            if not memory.is_allocated(n):
-                to_alloc.append(n)
-        memory.allocate_qubits(to_alloc)
+        if len(check_nodes) > len(instruction.physical_ancilla_qubits):
+            raise ValueError(f"""
+                Not enough physical ancilla qubits provided for syndrome extraction.
+                Required: {len(check_nodes)}, Provided: {len(instruction.physical_ancilla_qubits)}
+                This schedule expect 1 ancilla per check node.
+                """)
+
+        checks_qubits = {
+            check: instruction.physical_ancilla_qubits[check] for check in check_nodes
+        }
+        data_qubits = instruction.physical_data_qubits
+
+        node_to_qubit = {**checks_qubits, **data_qubits}
 
         # RESET ANCILLA
 
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
                 reset_ancilla_instructions.append(
-                    f"RZ {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case PauliEigenState.X_plus:
                 reset_ancilla_instructions.append(
-                    f"RX {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case _:
                 raise ValueError(
@@ -115,20 +125,20 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         for t in [t1, t2, t3, t4]:
             single_round_instructions.append(
-                f"CX {" ".join(f"{str(memory.get_slot(con))} {str(memory.get_slot(tar))}" for con, tar in t)}"
+                f"CX {" ".join(f"{str(node_to_qubit[con].integer_index)} {str(node_to_qubit[tar].integer_index)}" for con, tar in t)}"
             )
             single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"MRZ {" ".join(str(memory.get_slot(c)) for c in node_measured)}"
+            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in node_measured)}"
         )
 
         stim_instructions.append(f"REPEAT {instruction.rounds} {{")

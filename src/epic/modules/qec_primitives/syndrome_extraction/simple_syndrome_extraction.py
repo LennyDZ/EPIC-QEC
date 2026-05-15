@@ -3,16 +3,18 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 import warnings
 
-from epic.core.qec_object.detector import NodeKnowledge
 from epic.core.compilation.measurement_record import (
-    MeasurementRecord,
     MeasurementRecordView,
 )
-from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode
-from epic.core.data_structure.tanner_node import CheckNode
-from epic.core.qec_object import Detector, Measurement
-from epic.core.qec_object.detector import DetectorGraphPort, QubitPortState
+
+from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, CheckNode
+from epic.core.qec_object import (
+    Detector,
+    Measurement,
+    DetectorGraphPort,
+    QubitPortState,
+    NodeKnowledge,
+)
 from epic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
 
 
@@ -22,7 +24,6 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
     def compile(
         self,
         instruction: ExtractSyndrome,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -34,22 +35,29 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         measurements: Dict[TannerNode, List[Measurement]] = {}
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
-        to_alloc: List[TannerNode] = []
 
-        for n in instruction.target.variable_nodes | instruction.target.check_nodes:
-            if not memory.is_allocated(n):
-                to_alloc.append(n)
-        memory.allocate_qubits(to_alloc)
+        if len(check_nodes) > len(instruction.physical_ancilla_qubits):
+            raise ValueError(f"""
+                Not enough physical ancilla qubits provided for syndrome extraction.
+                Required: {len(check_nodes)}, Provided: {len(instruction.physical_ancilla_qubits)}
+                This schedule expect 1 ancilla per check node.
+                """)
+
+        checks_qubits = {
+            check: instruction.physical_ancilla_qubits[check] for check in check_nodes
+        }
+
+        data_qubits = instruction.physical_data_qubits
 
         # RESET ANCILLA
 
         if instruction.ancilla_reset_state == PauliEigenState.Z_plus:
             reset_ancilla_instructions.append(
-                f"RZ {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                f"RZ {" ".join([str(checks_qubits[check].integer_index) for check in check_nodes])}"
             )
         elif instruction.ancilla_reset_state == PauliEigenState.X_plus:
             reset_ancilla_instructions.append(
-                f"RX {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                f"RX {" ".join([str(checks_qubits[check].integer_index) for check in check_nodes])}"
             )
         else:
             raise ValueError(
@@ -66,9 +74,9 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
             )  # for clarity in the generated stim code
             if check.check_type:
                 check_circuit = self._extract_check_circuit(
-                    memory.get_slot(check),
+                    checks_qubits[check].integer_index,
                     [
-                        memory.get_slot(n)
+                        data_qubits[n].integer_index  # type: ignore
                         for n in instruction.target.get_neighbourhood(check)
                     ],
                     check.check_type,
@@ -81,7 +89,7 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
             [f"    {instr}" for instr in single_round_instructions]
         )
         stim_instructions.append(
-            f"    MRZ {" ".join(str(memory.get_slot(n)) for n in node_measured)}"
+            f"    MRZ {" ".join(str(checks_qubits[n].integer_index) for n in node_measured)}"
         )
         stim_instructions.append("}")
 

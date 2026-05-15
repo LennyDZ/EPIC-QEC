@@ -35,7 +35,10 @@ class ExtractSyndrome(QECPrimitive):
         tag: str,
     ) -> Detector | None:
         measurement_in_detectors = [round_zero_measurement]
-        check_knowledge = dgp[check].knowledge
+        if check not in dgp:
+            check_knowledge = NodeKnowledge.UNKNOWN
+        else:
+            check_knowledge = dgp[check].knowledge
         match check_knowledge:
             case NodeKnowledge.STABLE:
                 # By default, if a check was stable, we expect it to have the same parity as the previous round
