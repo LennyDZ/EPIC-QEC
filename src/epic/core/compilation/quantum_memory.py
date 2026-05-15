@@ -3,7 +3,7 @@ from types import MappingProxyType
 from typing import Set
 from uuid import UUID
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from ..data_structure import VariableNode, PhysicalQubit
 
@@ -19,6 +19,20 @@ class QuantumMemory(BaseModel):
         description="Current number of qubits in the quantum memory. -1 indicates unbounded memory that can grow as needed.",
         default=0,
     )
+
+    @model_validator(mode="after")
+    def validate_size(cls, model):
+        if model.size_limit == -1:
+            return model
+        else:
+            model.size = model.size_limit
+            model._existing_qubits.update(
+                PhysicalQubit(integer_index=i) for i in range(model.size_limit)
+            )
+            model._free_qubits.update(
+                PhysicalQubit(integer_index=i) for i in range(model.size_limit)
+            )
+            return model
 
     _existing_qubits: set[PhysicalQubit] = PrivateAttr(default_factory=set)
     _free_qubits: set[PhysicalQubit] = PrivateAttr(default_factory=set)
