@@ -2,19 +2,16 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure.pauli import PauliChar, PauliEigenState
-from epic.core.data_structure.tanner_node import TannerNode
-from epic.core.qec_object.detector import (
+from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, TannerEdge
+from epic.core.qec_object import (
     Detector,
     DetectorGraphPort,
     NodeKnowledge,
     QubitPortState,
+    Measurement,
 )
-from epic.core.qec_object.measurement import Measurement
 from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
 from epic.core.qec_primitives.interfaces.qec_primitive import PrimitiveImplementation
-from epic.core.data_structure.tanner_graph import TannerEdge
 
 
 class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
@@ -52,22 +49,29 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
     def compile(
         self,
         instruction: ExtractSyndrome,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
     ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
 
+        check_nodes = instruction.target.check_nodes
         stim_instructions = []
         detectors = []
         measurements = []
 
-        # Alloc qubits if needed
-        to_alloc: List[TannerNode] = []
-        for n in instruction.target.variable_nodes | instruction.target.check_nodes:
-            if not memory.is_allocated(n):
-                to_alloc.append(n)
-        memory.allocate_qubits(to_alloc)
+        if len(check_nodes) > len(instruction.physical_ancilla_qubits):
+            raise ValueError(f"""
+                    Not enough physical ancilla qubits provided for syndrome extraction.
+                    Required: {len(check_nodes)}, Provided: {len(instruction.physical_ancilla_qubits)}
+                    This schedule expect 1 ancilla per check node.
+                    """)
+
+        checks_qubits = {
+            check: instruction.physical_ancilla_qubits[check] for check in check_nodes
+        }
+        data_qubits = instruction.physical_data_qubits
+
+        node_to_qubit = {**checks_qubits, **data_qubits}
 
         # Separate X and Z edges
         tanner = instruction.target
@@ -99,11 +103,11 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
                 stim_instructions.append(
-                    f"RZ {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case PauliEigenState.X_plus:
                 stim_instructions.append(
-                    f"RX {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case _:
                 raise ValueError(
@@ -117,13 +121,13 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         # X checks:
         if x_checks:
             single_round_instructions.append(
-                f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+                f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
             )
             single_round_instructions.append("TICK")
         x_cnot_steps = [[] for _ in range(x_color_count + 1)]
         for edge in x_edges:
-            var_slot = memory.get_slot(edge.variable_node)
-            check_slot = memory.get_slot(edge.check_node)
+            var_slot = node_to_qubit[edge.variable_node].integer_index
+            check_slot = node_to_qubit[edge.check_node].integer_index
             color = x_coloring[edge]
             x_cnot_steps[color].append((check_slot, var_slot))
         for step in x_cnot_steps:
@@ -135,15 +139,15 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             single_round_instructions.append("TICK")
         if x_checks:
             single_round_instructions.append(
-                f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+                f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
             )
             single_round_instructions.append("TICK")
 
         # Z checks:
         z_cnot_steps = [[] for _ in range(z_color_count + 1)]
         for edge in z_edges:
-            var_slot = memory.get_slot(edge.variable_node)
-            check_slot = memory.get_slot(edge.check_node)
+            var_slot = node_to_qubit[edge.variable_node].integer_index
+            check_slot = node_to_qubit[edge.check_node].integer_index
             color = z_coloring[edge]
             z_cnot_steps[color].append((check_slot, var_slot))
         for step in z_cnot_steps:
@@ -157,7 +161,7 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         # Measure ancilla qubits
         check_order = list(instruction.target.check_nodes)
         single_round_instructions.append(
-            f"MRZ {" ".join(str(memory.get_slot(c)) for c in check_order)}"
+            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in check_order)}"
         )
         stim_instructions.append(f"REPEAT {instruction.rounds} {{")
         stim_instructions.extend(

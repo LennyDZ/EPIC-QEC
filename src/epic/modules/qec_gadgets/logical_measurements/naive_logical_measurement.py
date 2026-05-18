@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import model_validator
 
+from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure import PauliChar, TannerGraph
 from epic.core.language import LogicGadget
 from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable
@@ -26,7 +27,12 @@ class NaiveLogicalMeasurement(LogicGadget):
         return self
 
     def compile(
-        self, resolved_targets, record, timestep, objective_distance
+        self,
+        resolved_targets,
+        record,
+        quantum_memory: QuantumMemory,
+        timestep,
+        objective_distance,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
         primitives = []
         lop_targets: List[LogicalOperator] = []
@@ -42,13 +48,18 @@ class NaiveLogicalMeasurement(LogicGadget):
                     )
 
         for lop in lop_targets:
+            target = TannerGraph(
+                variable_nodes=set(lop.target_nodes),
+                check_nodes=set(),
+                edges=set(),
+            )
             primitives.append(
                 Readout(
-                    target=TannerGraph(
-                        variable_nodes=set(lop.target_nodes),
-                        check_nodes=set(),
-                        edges=set(),
+                    target=target,
+                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                        target.variable_nodes
                     ),
+                    physical_ancilla_qubits={},  # no ancilla needed since no check in target nodes
                     readout_basis=lop.logical_type,
                     tag=f"measurement_{self.tag}_{lop.id}",
                 )

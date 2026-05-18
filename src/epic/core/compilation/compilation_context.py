@@ -5,18 +5,20 @@ from typing import Any, Dict, List, Set, Tuple, TypeVar, overload
 from uuid import UUID
 import warnings
 
-from epic.core.qec_object.detector import (
-    Detector,
-    DetectorGraphPort,
-    QubitPortState,
-)
-from epic.core.qec_object.measurement import Measurement
-
 from .compiled_experiment import CompiledExperiment
 from .measurement_record import MeasurementRecord
 from .quantum_memory import QuantumMemory
 from ..data_structure.tanner_node import TannerNode
-from ..qec_object import LogicalOperator, LogicalQubit, Observable, StabilizerCode
+from ..qec_object import (
+    LogicalOperator,
+    LogicalQubit,
+    Observable,
+    StabilizerCode,
+    Measurement,
+    Detector,
+    DetectorGraphPort,
+    QubitPortState,
+)
 
 TargetT = TypeVar("TargetT", LogicalQubit, StabilizerCode)
 
@@ -34,7 +36,7 @@ class CompilationContext:
         measurement_record: Tracks measurements emitted by compiled primitives.
     """
 
-    def __init__(self):
+    def __init__(self, memory_size: int = -1) -> None:
         """Initialize the compilation state and all its registers. At the start, everything is empty."""
         self._uuid_memory: Dict[UUID, Any] = {}
         self._naming_registry: Dict[str, UUID] = {}
@@ -45,7 +47,7 @@ class CompilationContext:
         self._circuit_instructions = []
         self._detectors = []
 
-        self.quantum_memory = QuantumMemory()
+        self.quantum_memory = QuantumMemory(size_limit=memory_size)
         self.measurement_record = MeasurementRecord()
 
         self._compilation_time = (0, 0)
@@ -160,7 +162,10 @@ class CompilationContext:
     def register_code(
         self, lqb_name: List[str], code: StabilizerCode, code_varname: str
     ):
-        """Register a code, its logical qubits, and their logical operators."""
+        """
+        Register a code, its logical qubits, and their logical operators.
+        Allocate physical qubits for the data qubits nodes
+        """
         self._uuid_memory[code.id] = code
         self._naming_registry[code_varname] = code.id
         for idx, qubit in enumerate(code.logical_qubits):
@@ -170,6 +175,9 @@ class CompilationContext:
             for op in [qubit.logical_x, qubit.logical_z]:
                 self._uuid_memory[op.id] = op
                 self._operator_to_qubit[op.id] = qubit.id
+        self.quantum_memory.allocate_qubits(
+            qubits=list(code.tanner_graph.variable_nodes)
+        )
 
     def unregister_code(self, code_varname: str):
         """Remove a registered code and all objects derived from it."""
@@ -197,6 +205,7 @@ class CompilationContext:
                 del self._operator_to_qubit[op.id]
         del self._uuid_memory[code_id]
         del self._naming_registry[code_varname]
+        self.quantum_memory.free_qubits(qubits=list(code.tanner_graph.variable_nodes))
 
     def allocated_code_varnames(self) -> List[str]:
         """Return the variable names of all currently registered codes."""

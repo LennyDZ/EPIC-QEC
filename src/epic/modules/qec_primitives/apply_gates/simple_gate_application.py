@@ -1,15 +1,11 @@
 from typing import List, Set, Tuple, Union, cast
 from uuid import UUID
 
-from epic.core.compilation import QuantumMemory
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure import TannerNode
-from epic.core.qec_object import Detector, Measurement
-from epic.core.qec_object.detector import (
-    DetectorGraphPort,
-    NodeKnowledge,
-    QubitPortState,
-)
+from epic.core.data_structure import TannerNode, VariableNode
+from epic.core.qec_object import Detector, Measurement, DetectorGraphPort, NodeKnowledge
+
+from epic.core.qec_object.detector import QubitPortState
 from epic.core.qec_primitives.interfaces import ApplyGate, PrimitiveImplementation
 
 
@@ -19,7 +15,7 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
     @staticmethod
     def _sanitize_target_nodes(
         target_nodes: Union[Set[TannerNode], Set[Tuple[TannerNode, ...]]],
-    ) -> Set[Tuple[TannerNode, ...]]:
+    ) -> Set[Tuple[VariableNode, ...]]:
         """Normalize targets to a set of tuples and validate homogeneous tuple sizes."""
         if not target_nodes:
             raise ValueError("ApplyGate instruction must specify target_nodes.")
@@ -28,7 +24,7 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
 
         if isinstance(first, tuple):
             sanitized_targets = set(
-                cast(Tuple[TannerNode, ...], group) for group in target_nodes
+                cast(Tuple[VariableNode, ...], group) for group in target_nodes
             )
 
             tuple_lengths = {len(group) for group in sanitized_targets}
@@ -43,15 +39,14 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
 
         if any(isinstance(item, tuple) for item in target_nodes):
             raise ValueError(
-                "target_nodes must be either a set of TannerNode or a set of tuple[TannerNode, ...]."
+                "target_nodes must be either a set of VariableNode or a set of tuple[VariableNode, ...]."
             )
 
-        return {(cast(TannerNode, node),) for node in target_nodes}
+        return {(cast(VariableNode, node),) for node in target_nodes}
 
     def compile(
         self,
         instruction: ApplyGate,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -72,23 +67,24 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             "RX": NodeKnowledge.RX,
         }
 
+        mem = {
+            **instruction.physical_data_qubits,
+            **instruction.physical_ancilla_qubits,
+        }
+
         if instruction.gates[-1] in gate_to_knowledge:
             node_knowledge = gate_to_knowledge[instruction.gates[-1]]
         else:
             node_knowledge = NodeKnowledge.UNKNOWN
 
-        for targets in sanitized_targets:
-            to_alloc = []
-            for node in targets:
-                if not memory.is_allocated(node):
-                    to_alloc.append(node)
-                new_dg_port[node] = QubitPortState(knowledge=node_knowledge)
-
-            memory.allocate_qubits(to_alloc)
+        if node_knowledge != NodeKnowledge.UNKNOWN:
+            for t in sanitized_targets:
+                for node in t:
+                    new_dg_port[node] = QubitPortState(knowledge=node_knowledge)
 
         for gate in instruction.gates:
             slots = " ".join(
-                str(memory.get_slot(node)) for t in sanitized_targets for node in t
+                str(mem[node].integer_index) for t in sanitized_targets for node in t
             )
             stim_instructions.append(f"{gate} {slots}")
 

@@ -25,8 +25,6 @@ class ImplementationName(PrimitiveImplementation[ApplyGate]):
     def compile(
         self,
         instruction: ApplyGate,
-        memory: QuantumMemory,
-        
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -38,7 +36,6 @@ The class must inherit from `PrimitiveImplementation[<...>]`, where the placehol
 `QECPrimitive` instruction that is implemented. The `compile` method then builds the expected information.
 It receives the following as input:
 - An instruction, which is the implemented `QECPrimitive`.
-- The quantum memory being used. This is important because primitives are responsible for allocating qubits if necessary.
 - A view of the measurement record, which can be used when building detectors between two primitives.
 - A detector graph port, which provides information on the states of the qubits in the previous primitive in order to build detectors correctly.
 - The ID of the gadget using the primitive.
@@ -59,7 +56,6 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
     def compile(
         self,
         instruction: ExtractSyndrome,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -71,16 +67,16 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
 
-        # Allocate the nodes that are not allocated yet.
-        to_alloc: List[TannerNode] = []
-        for n in instruction.target.variable_nodes | instruction.target.check_nodes:
-            if not memory.is_allocated(n):
-                to_alloc.append(n)
-        memory.allocate_qubits(to_alloc)
+        # Physical qubits that we are allowed to used are given in the instruction.
+        checks_qubits = {
+            check: instruction.physical_ancilla_qubits[check] for check in check_nodes
+        }
+        data_qubits = instruction.physical_data_qubits
+        node_to_qubit = {**checks_qubits, **data_qubits}
 
         # Reset the ancilla used to measure the syndromes.
         stim_instructions.extend(
-            f"RZ {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+            f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
         )
 
         # Build the syndrome-extraction circuit for one round.
@@ -122,20 +118,20 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         for t in [t1, t2, t3, t4]:
             single_round_instructions.append(
-                f"CX {" ".join(f"{str(memory.get_slot(con))} {str(memory.get_slot(tar))}" for con, tar in t)}"
+                f"CX {" ".join(f"{str(node_to_qubit[con].integer_index)} {str(node_to_qubit[tar].integer_index)}" for con, tar in t)}"
             )
             single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"MRZ {" ".join(str(memory.get_slot(c)) for c in node_measured)}"
+            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in node_measured)}"
         )
 
         # Repeat the round.

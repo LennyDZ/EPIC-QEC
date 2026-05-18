@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict
 from epic.core.experiment.noise_model import NoiseModel
 
 from ..qec_object import Measurement
-from .measurement_record import MeasurementRecord
 from ..qec_object import Detector, Observable
+
+from .measurement_record import MeasurementRecord
 
 
 class CompiledExperiment(BaseModel):
