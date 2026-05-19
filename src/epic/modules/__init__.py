@@ -3,10 +3,8 @@ from .qec_gadgets import (
     NaiveLogicalMeasurement,
     RSCSurgery,
     ReadoutCode,
-    TransversalCNOT,
 )
 from .qec_primitives import (
-    EmptyProcedure,
     NaiveReadout,
     SimpleGateApplication,
     SimpleSyndromeExtraction,
@@ -22,7 +20,6 @@ from .stabilizers_codes import (
 
 __all__ = [
     "CSSCode",
-    "EmptyProcedure",
     "InitCode",
     "NaiveLogicalMeasurement",
     "NaiveReadout",
@@ -35,5 +32,4 @@ __all__ = [
     "RSCSyndromeExtraction",
     "SurfaceCode",
     "ToricCode",
-    "TransversalCNOT",
 ]

@@ -3,17 +3,27 @@ from uuid import UUID
 from functools import reduce
 from operator import or_
 
+import xgi
 import numpy as np
+import ldpc.mod2 as m2a
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure.pauli import PauliChar
-from epic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
-from epic.core.data_structure.tanner_node import CheckNode, VariableNode
-from epic.core.qec_object.logical_operator import LogicalOperator, LogicalOperatorUpdate
-from epic.core.qec_object.logical_qubit import LogicalQubit
-from epic.core.qec_object.measurement import Measurement
-from epic.core.qec_object.observable import Observable
-from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.compilation.quantum_memory import QuantumMemory
+from epic.core.data_structure import (
+    PauliChar,
+    VariableNode,
+    TannerGraph,
+    CheckNode,
+    TannerEdge,
+)
+from epic.core.qec_object import (
+    LogicalOperator,
+    LogicalOperatorUpdate,
+    LogicalQubit,
+    Measurement,
+    Observable,
+    StabilizerCode,
+)
 from epic.core.qec_primitives.interfaces.apply_gate import ApplyGate
 from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
 from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
@@ -41,21 +51,112 @@ class HomologicalMeasurement(PPM):
         Returns:
             The modified matrix with additional edges added to achieve a Cheeger constant of 1.
         """
-        modified_matrix = matrix.copy()
+        output_graph = matrix.copy()  # just to be safe
+        xgi_graph = xgi.convert.from_incidence_matrix(output_graph.T)  # type: ignore
 
-        # while cheeger(modified_matrix) < 1:
-        #     # Find sparsest cut
-        #     s = argmin(ds/d) for s in v if |s| <= |v|/2
+        def boundary_size(main_graph: xgi.Hypergraph, subset_nodes: tuple) -> float:
+            count = 0
+            for e in main_graph.edges.members():
+                if len(e & set(subset_nodes)) == 1:
+                    count += 1
+            return count
 
-        #     h_star = None
+        def cheeger_constant(graph: xgi.Hypergraph) -> Tuple[float, tuple]:
+            subset = xgi.utils.powerset(graph.nodes, max_size=graph.num_nodes // 2)
+            sparsest_cut = min(subset, key=lambda s: boundary_size(graph, s) / len(s))
+            return boundary_size(graph, sparsest_cut) / len(sparsest_cut), sparsest_cut
 
-        return modified_matrix
+        def min_deg_vertices(graph: xgi.Hypergraph, vertices: tuple) -> list:
+            min_deg = min(graph.degree(v) for v in vertices)
+            min_deg_vertices = [v for v in vertices if graph.degree(v) == min_deg]
+
+            return min_deg_vertices
+
+        cheeger_cst, sparsest_cut = cheeger_constant(xgi_graph)
+
+        while cheeger_cst < 1:
+            # Add an edge to it to increase cheeger:
+            h_star = float("-inf")
+            new_edge = None
+            for v1 in min_deg_vertices(xgi_graph, sparsest_cut):
+                for v2 in min_deg_vertices(
+                    xgi_graph, tuple(set(xgi_graph.nodes) - set(sparsest_cut))
+                ):
+                    xgi_graph.add_edges_from({"tmp_edge": [v1, v2]})
+                    new_cst, _ = cheeger_constant(xgi_graph)
+                    if new_cst > h_star:
+                        h_star = new_cst
+                        new_edge = (v1, v2)
+                    xgi_graph.remove_edges_from(["tmp_edge"])
+            if new_edge is not None:
+                xgi_graph.add_edge(new_edge, idx=xgi_graph.num_edges)
+                cheeger_cst, sparsest_cut = cheeger_constant(xgi_graph)
+            else:
+                raise RuntimeError(
+                    "Failed to find an edge to increase Cheeger constant."
+                )
+
+        im = xgi.to_incidence_matrix(xgi_graph)
+        return im.toarray().T  # type: ignore
 
     @staticmethod
-    def _find_low_weight_delta_zero(
-        delta1: np.ndarray, H_d: np.ndarray, f0: np.ndarray
+    def _random_search_for_low_weight_delta_zero(
+        delta1: np.ndarray,
+        H_d: np.ndarray,
+        f0: np.ndarray,
+        num_random_samples: int = 1000,
     ) -> np.ndarray:
-        return delta1
+        """
+        Random search algorithm to find a low-weight delta zero matrix.
+        Ref; Algorithm 2 in the paper
+
+        Args:
+            delta1: The delta1 matrix.
+            H_d: The H_d matrix.
+            f0: The f0 matrix.
+            num_random_samples: The number of random samples to try.
+
+        Returns:
+            The modified delta1 matrix with low-weight delta zero.
+        """
+        # v is any matrix whose rows form a basis of v^T*f_0 | v in ker(H_d^T)
+        v_in_ker = m2a.kernel(H_d.T)
+        vT_f0 = v_in_ker @ f0
+        mV = m2a.row_basis(vT_f0)
+        # reduced row echelon form v
+        mV = m2a.reduced_row_echelon(mV)
+
+        # define W over GF(2) so that ker(W) = im(delta1)
+        mW = None
+
+        # add rows of V to W to zero out the pivot columns of V in W
+        # put W in row echelon form with zero-rows removed
+        mW = m2a.reduced_row_echelon(mW)
+
+        def rnd_invertible_matrix(rows, cols, max_attempts=1000):
+            for _ in range(max_attempts):
+                m = np.random.randint(0, 2, size=(rows, cols))
+                if m2a.rank(m) == m.shape[0]:  # Check if the matrix is invertible
+                    return m
+            raise RuntimeError(
+                "Failed to generate an invertible matrix after max_attempts"
+            )
+
+        delta0 = mW
+
+        for i in range(num_random_samples):
+            mA = rnd_invertible_matrix(rows, cols)
+            mB = np.random.randint(0, 2, size=(rows, cols))
+
+            prod_1 = mA @ mW
+            prod_2 = mB @ mV
+            d1_max_row_w = max(np.sum(delta1, axis=1))
+            if max(np.sum(prod_1 + prod_2, axis=1)) < d1_max_row_w:
+                delta0 = prod_1 + prod_2
+            if max(np.sum(prod_1, axis=1)) < d1_max_row_w:
+                delta0 = prod_1
+
+        return delta0
 
     @staticmethod
     def _build_cone_code(
@@ -68,6 +169,8 @@ class HomologicalMeasurement(PPM):
 
         The cone code is a Tanner graph that includes the ancilla variable nodes and check nodes, as well as the edges connecting them to the original codes' Tanner graphs.
 
+        # The comment section numbers refer to the steps in the paper's construction (algorithm 3)
+
         Args:
             codes: List of CSS codes involved in the measurement.
             logical_qubits: List of logical qubits corresponding to the codes.
@@ -75,8 +178,9 @@ class HomologicalMeasurement(PPM):
         Returns:
             A tuple containing the ancilla Tanner graph and the connecting edges.
         """
-        base_system: TannerGraph = reduce(or_, [code.tanner_graph for code in codes])
 
+        # Transform Tanner graph in PCM
+        base_system: TannerGraph = reduce(or_, [code.tanner_graph for code in codes])
         indexed_var_nodes = {
             node: idx for idx, node in enumerate(base_system.variable_nodes)  # type: ignore
         }
@@ -84,8 +188,6 @@ class HomologicalMeasurement(PPM):
             node: idx for idx, node in enumerate(base_system.check_nodes)  # type: ignore
         }
 
-        # Working with PCM here
-        # take the pcm of the dual type of the measured operator (i.e H_z if we measure a X op and vice versa)
         h_d = np.zeros(
             (len(indexed_check_nodes), len(indexed_var_nodes)), dtype=np.int8
         )
@@ -119,7 +221,7 @@ class HomologicalMeasurement(PPM):
                 rows_to_remove.append(i)
         eq49_matrix = np.delete(eq49_matrix, rows_to_remove, axis=0)
 
-        # Extract the f1, f0* and delta1* matrices
+        # 1: Extract the f1, f0* and delta1* matrices
         support_width = len(idx_in_supp)
         surviving_check_rows = len(indexed_check_nodes) - len(rows_to_remove)
         f1 = eq49_matrix[-n:, :support_width]
@@ -127,18 +229,26 @@ class HomologicalMeasurement(PPM):
         f0_star = f0_star_T.T
         delta1_star = eq49_matrix[:surviving_check_rows, :support_width]
 
+        # 2: algorithm 1
         delta1 = HomologicalMeasurement._greedy_to_cheeger_of_one(delta1_star)
 
-        # add zeros columns to f0* to match the dimensions of the cone code
+        # 3: add zeros columns to f0* to match the dimensions of the cone code
         h, w = delta1.shape
         num_new_cols = h - delta1_star.shape[1]
         f0 = np.hstack([f0_star, np.zeros((f0_star.shape[0], num_new_cols))])
 
-        delta0 = HomologicalMeasurement._find_low_weight_delta_zero(delta1, h_d, f0)
+        # 4
+        delta0 = HomologicalMeasurement._random_search_for_low_weight_delta_zero(
+            delta1, h_d, f0
+        )
 
+        # 8 - 18: Cellulation if sparsity not good enough
+        # if bad_sparsity:
+        #     ...
+
+        # Format back to Tanner graph objects:
         # f0 columns correspond to new nodes
         new_var_nodes = [VariableNode(tag=f"av_{i}") for i in range(f0.shape[1])]
-
         # new checks of the ptype to measure are rows of delta1.T (or f1 transpose)
         new_c_nodes = [
             CheckNode(tag=f"asc_{i}", check_type=ptype) for i in range(delta1.shape[0])
@@ -197,10 +307,11 @@ class HomologicalMeasurement(PPM):
     def compile(
         self,
         resolved_targets: List[Tuple[LogicalQubit, StabilizerCode]],
-        record: MeasurementRecordView,
-        timestep: int,
+        record,
+        quantum_memory: QuantumMemory,
+        timestep,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ):
 
         codes = [code for _, code in resolved_targets]
         logical_qubits = [lq for lq, _ in resolved_targets]
@@ -231,29 +342,51 @@ class HomologicalMeasurement(PPM):
             codes_set, lop_involved, ptype
         )
 
-        # extra_ancilla_needed = cone_code.number_of_nodes - sum(
-        #     c.tanner_graph.number_of_nodes for c in set(codes)
-        # )
+        cone_system = ancilla_system.connect_to(
+            reduce(or_, [code.tanner_graph for code in codes_set]), connecting_edges
+        )
+
+        qubits_for_ancilla_system = quantum_memory.lock_ancilla_qubits(
+            len(ancilla_system.variable_nodes), self.id
+        )
+        ancilla_sys_data_qubits = {
+            v: q
+            for v, q in zip(ancilla_system.variable_nodes, qubits_for_ancilla_system)
+        }
+
+        qubits_for_merged_system_checks = quantum_memory.lock_ancilla_qubits(
+            len(cone_system.check_nodes), self.id
+        )
+        checks_qubits = {
+            c: q
+            for c, q in zip(cone_system.check_nodes, qubits_for_merged_system_checks)
+        }
 
         init_ancilla = ApplyGate(
             target=ancilla_system,
             target_nodes=ancilla_system.variable_nodes | ancilla_system.check_nodes,  # type: ignore
+            physical_data_qubits=ancilla_sys_data_qubits,
+            physical_ancilla_qubits=checks_qubits,  # type: ignore
             gates=(
                 ["RX"] if ptype == PauliChar.Z else ["RZ"]
             ),  # Init in dual of the merge type.
         )
 
-        cone_system = ancilla_system.connect_to(
-            reduce(or_, [code.tanner_graph for code in codes_set]), connecting_edges
-        )
         cone_syndrome = ExtractSyndrome(
             target=cone_system,
             rounds=objective_distance,
+            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                cone_system.variable_nodes  # type: ignore
+            )
+            | ancilla_sys_data_qubits,
+            physical_ancilla_qubits=checks_qubits,  # type: ignore
             tag=f"hm_syndrome_{self.tag}",
         )
 
         ancilla_readout = Readout(
             target=ancilla_system,
+            physical_data_qubits=ancilla_sys_data_qubits,
+            physical_ancilla_qubits=checks_qubits,  # type: ignore
             readout_basis=ptype.dual(),
             tag=f"hm_ancilla_{self.tag}",
         )
@@ -263,6 +396,10 @@ class HomologicalMeasurement(PPM):
                 target=code.tanner_graph,
                 rounds=objective_distance,
                 tag=f"hm_split_syndrome_{code.name}",
+                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    code.tanner_graph.variable_nodes  # type: ignore
+                ),
+                physical_ancilla_qubits=checks_qubits,  # type: ignore
             )
             for code in codes
         ]
