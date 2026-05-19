@@ -2,18 +2,16 @@ from pathlib import Path
 from typing import Any, List, Mapping, Sequence, Tuple
 import warnings
 
-from epic.core.language.qec_gadget import AllocCode, CodeGadget, FreeCode, LogicGadget
-from epic.core.qec_object.logical_qubit import LogicalQubit
-from epic.core.qec_object.observable import Observable
-from epic.core.qec_object.stabilizer_code import StabilizerCode
 from debug.warnings import CodeBelowDistanceWarning
-from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
 
 from .compiled_experiment import CompiledExperiment
 from .compilation_context import CompilationContext
-from ..language import QECGadget
+from ..qec_object import LogicalQubit, StabilizerCode, Observable
+from ..language import QECGadget, AllocCode, CodeGadget, FreeCode, LogicGadget
 from ..qec_primitives.interfaces import QECPrimitive
 from ..qec_primitives import PrimitiveCompiler
+
+from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
 
 
 class QECCompiler:
@@ -28,7 +26,8 @@ class QECCompiler:
         """
         self.config = config
         self.distance = self.config.get("objective_distance", 0)
-        self.ctx = CompilationContext()
+        self.quantum_memory_limit = self.config.get("physical_qubits_limit", -1)
+        self.ctx = CompilationContext(memory_size=self.quantum_memory_limit)
         self.primitive_compiler = PrimitiveCompiler(config=config)
         # self.gadget_compiler = GadgetCompiler(config)
 
@@ -162,6 +161,7 @@ class QECCompiler:
                         gadget.compile(
                             resolved_targets,
                             self.ctx.measurement_record.view(),
+                            self.ctx.quantum_memory,
                             self.ctx.t_gadget,
                             self.distance,
                         )
@@ -174,6 +174,7 @@ class QECCompiler:
                         gadget.compile(
                             resolved_targets,
                             self.ctx.measurement_record.view(),
+                            self.ctx.quantum_memory,
                             self.ctx.t_gadget,
                             self.distance,
                         )
@@ -181,15 +182,11 @@ class QECCompiler:
                 case _:
                     raise ValueError(f"Unsupported gadget type: {type(gadget)}")
 
-            # TODO
-            # lock = self.ctx.quantum_memory.acquire_lock(ctx_nodes, ancilla_cost) <= dict node->idx, list[reserved idx]
-            # => alloc ancilla_cost
             gadget_measurements = []
             for p_op in primitive_code_instructions:
                 c_instructions, measurements, detectors, new_dg_port = (
                     self.primitive_compiler.compile(
                         p_op,
-                        self.ctx.quantum_memory,
                         self.ctx.measurement_record.view(),
                         self.ctx.detector_graph_port_view(),
                         parent_gadget_id=gadget.id,
@@ -213,7 +210,6 @@ class QECCompiler:
                         observables,
                         gadget.tag,
                     )
-            # => release lock, dealloc ancillas
 
             # Should I apply the frame correction the Observable with or without the gadget's own logical correction ? ???
             if observables is not None:

@@ -1,7 +1,7 @@
 from uuid import UUID
 from collections.abc import Iterable
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, PrivateAttr
 
 from ..qec_object import Measurement
 

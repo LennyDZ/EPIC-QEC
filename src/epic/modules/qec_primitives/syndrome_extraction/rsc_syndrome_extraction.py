@@ -1,19 +1,18 @@
-from types import MappingProxyType
 from typing import Dict, List, Tuple
-from unittest import case
 from uuid import UUID
-import warnings
 
-from epic.core.qec_object.detector import NodeKnowledge
+
 from epic.core.compilation.measurement_record import (
-    MeasurementRecord,
     MeasurementRecordView,
 )
-from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode
-from epic.core.data_structure.tanner_node import CheckNode
-from epic.core.qec_object import Detector, Measurement
-from epic.core.qec_object.detector import DetectorGraphPort, QubitPortState
+from epic.core.qec_object import (
+    Detector,
+    Measurement,
+    DetectorGraphPort,
+    QubitPortState,
+    NodeKnowledge,
+)
 from epic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
 
 
@@ -23,7 +22,6 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
     def compile(
         self,
         instruction: ExtractSyndrome,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -37,22 +35,30 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
 
-        to_alloc: List[TannerNode] = []
-        for n in instruction.target.variable_nodes | instruction.target.check_nodes:
-            if not memory.is_allocated(n):
-                to_alloc.append(n)
-        memory.allocate_qubits(to_alloc)
+        if len(check_nodes) > len(instruction.physical_ancilla_qubits):
+            raise ValueError(f"""
+                Not enough physical ancilla qubits provided for syndrome extraction.
+                Required: {len(check_nodes)}, Provided: {len(instruction.physical_ancilla_qubits)}
+                This schedule expect 1 ancilla per check node.
+                """)
+
+        checks_qubits = {
+            check: instruction.physical_ancilla_qubits[check] for check in check_nodes
+        }
+        data_qubits = instruction.physical_data_qubits
+
+        node_to_qubit = {**checks_qubits, **data_qubits}
 
         # RESET ANCILLA
 
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
                 reset_ancilla_instructions.append(
-                    f"RZ {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case PauliEigenState.X_plus:
                 reset_ancilla_instructions.append(
-                    f"RX {" ".join([str(memory.get_slot(check)) for check in check_nodes])}"
+                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
                 )
             case _:
                 raise ValueError(
@@ -119,20 +125,20 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         for t in [t1, t2, t3, t4]:
             single_round_instructions.append(
-                f"CX {" ".join(f"{str(memory.get_slot(con))} {str(memory.get_slot(tar))}" for con, tar in t)}"
+                f"CX {" ".join(f"{str(node_to_qubit[con].integer_index)} {str(node_to_qubit[tar].integer_index)}" for con, tar in t)}"
             )
             single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"H {" ".join(str(memory.get_slot(xc)) for xc in x_checks)}"
+            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
         )
         single_round_instructions.append("TICK")
         single_round_instructions.append(
-            f"MRZ {" ".join(str(memory.get_slot(c)) for c in node_measured)}"
+            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in node_measured)}"
         )
 
         stim_instructions.append(f"REPEAT {instruction.rounds} {{")
@@ -151,7 +157,7 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         for check in check_nodes:
             # Initial round detector
-            detector_zero = self._detector_round_zero(
+            detector_zero = instruction._detector_round_zero(
                 record,
                 check,
                 det_graph_port,
@@ -179,75 +185,3 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
             )
 
         return stim_instructions, measurements_ordered, detectors, new_graph_port
-
-    @staticmethod
-    def _detector_round_zero(
-        record: MeasurementRecordView,
-        check: CheckNode,
-        dgp: DetectorGraphPort,
-        round_zero_measurement: Measurement,
-        tag: str,
-    ) -> Detector | None:
-        measurement_in_detectors = [round_zero_measurement]
-        check_knowledge = dgp[check].knowledge
-        match check_knowledge:
-            case NodeKnowledge.STABLE:
-                # By default, if a check was stable, we expect it to have the same parity as the previous round
-                latest = record.latest_by_node_id(check.id)
-                if latest is None:
-                    raise ValueError(
-                        f"No measurement found in record for stable check node {check.id}"
-                    )
-                measurement_in_detectors.append(latest)
-            case NodeKnowledge.UNKNOWN:
-                return None  # If the check is in unknown state, we cannot be sure about the outcome, so no detector is formed
-            case NodeKnowledge.MZ | NodeKnowledge.MX:
-                if check_knowledge.basis() != check.check_type:
-                    return None  # If the check was measured in a different basis, we cannot be sure about the outcome, so no detector is formed
-                else:  # if the check was measured in the same basis, the last measurement is included in the detector. (it may flip the expected parity)
-                    latest = record.latest_by_node_id(check.id)
-                if latest is None:
-                    raise ValueError(
-                        f"No measurement found in record for stable check node {check.id}"
-                    )
-                measurement_in_detectors.append(latest)
-
-            case NodeKnowledge.RX | NodeKnowledge.RZ:
-                # if it was reseted in the oposite bais, we cannot be sure about the outcome, so no detector is formed
-                if check_knowledge.basis() != check.check_type:
-                    return None
-            case _:
-                raise ValueError(f"Invalid known check state: {known_check_state}")
-
-        # Handle neighbors know state.
-        extra_measurements = []
-        for v in dgp[check].connected_nodes:
-            match dgp[v].knowledge:
-                case NodeKnowledge.RZ | NodeKnowledge.RX:
-                    # If some neighbor was reset, in a different basis than the check, we cannot be sure about the outcome, so no detector is formed.
-                    if dgp[v].knowledge.basis() != check_knowledge.basis():
-                        return None
-                case NodeKnowledge.MZ | NodeKnowledge.MX:
-                    # If some neighbor was measured, it is fine as long as it is in the same basis,
-                    # but we need to include the latest measurement of that neighbor in the detector
-                    if dgp[v].knowledge.basis() != check.check_type:
-                        return None
-                    lm = record.latest_by_node_id(v.id)
-                    if lm is not None:
-                        extra_measurements.append(lm)
-                    else:
-                        warnings.warn(
-                            f"Neighbor {v.id} of stable check {check.id} was measured but no measurement found in record. This neighbor will be ignored in the detector formation, which may lead to missed detection events."
-                        )
-                case NodeKnowledge.STABLE:
-                    pass  # If some neighbor was stable, it does not affect the detector formation
-                case NodeKnowledge.UNKNOWN:
-                    # If some of its neighbors are in unknown state, we cannot be sure about the outcome, so no detector is formed
-                    return None
-                case _:
-                    pass
-
-        return Detector(
-            measurements=measurement_in_detectors + extra_measurements,
-            tag=tag,
-        )

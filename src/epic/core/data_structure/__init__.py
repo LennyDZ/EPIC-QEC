@@ -4,6 +4,7 @@ from .pauli import PauliChar, PauliEigenState, PauliString
 from .tanner_node import CheckNode, TannerNode, VariableNode
 from .tanner_graph import TannerEdge, TannerGraph
 from .graph_algorithm import GraphAlgorithm
+from .physical_qubit import PhysicalQubit
 
 __all__ = [
     "TannerNode",
@@ -14,4 +15,5 @@ __all__ = [
     "PauliChar",
     "PauliEigenState",
     "PauliString",
+    "PhysicalQubit",
 ]

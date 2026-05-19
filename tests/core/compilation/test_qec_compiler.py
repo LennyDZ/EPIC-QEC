@@ -29,9 +29,17 @@ class DummyCodeGadget(CodeGadget):
     updates: dict[UUID, LogicalOperatorUpdate] = Field(default_factory=dict)
     call_log: dict[str, Any] = Field(default_factory=dict)
 
-    def compile(self, resolved_targets, record, timestep, objective_distance):
+    def compile(
+        self,
+        resolved_targets,
+        record,
+        quantum_memory,
+        timestep,
+        objective_distance,
+    ):
         self.call_log["resolved_targets"] = resolved_targets
         self.call_log["record_size"] = len(record.measurements())
+        self.call_log["quantum_memory"] = quantum_memory
         self.call_log["timestep"] = timestep
         self.call_log["objective_distance"] = objective_distance
         primitives = cast(list[QECPrimitive], [self.primitive])
@@ -44,9 +52,17 @@ class DummyLogicGadget(LogicGadget):
     updates: dict[UUID, LogicalOperatorUpdate] = Field(default_factory=dict)
     call_log: dict[str, Any] = Field(default_factory=dict)
 
-    def compile(self, resolved_targets, record, timestep, objective_distance):
+    def compile(
+        self,
+        resolved_targets,
+        record,
+        quantum_memory,
+        timestep,
+        objective_distance,
+    ):
         self.call_log["resolved_targets"] = resolved_targets
         self.call_log["record_size"] = len(record.measurements())
+        self.call_log["quantum_memory"] = quantum_memory
         self.call_log["timestep"] = timestep
         self.call_log["objective_distance"] = objective_distance
         primitives = cast(list[QECPrimitive], [self.primitive])
@@ -85,7 +101,6 @@ class TestQECCompiler:
         def fake_compile(
             self,
             primitive_instruction,
-            memory,
             record,
             det_graph_port,
             parent_gadget_id,
@@ -112,6 +127,7 @@ class TestQECCompiler:
 
         assert gadget.call_log["resolved_targets"] == [stabilizer_code]
         assert gadget.call_log["record_size"] == 0
+        assert gadget.call_log["quantum_memory"] == qec_compiler.ctx.quantum_memory
         assert gadget.call_log["timestep"] == 0
         assert gadget.call_log["objective_distance"] == 1
         assert compiled.record.view().measurements() == (measurement_a,)
@@ -149,7 +165,6 @@ class TestQECCompiler:
         def fake_compile(
             self,
             primitive_instruction,
-            memory,
             record,
             det_graph_port,
             parent_gadget_id,
@@ -176,6 +191,7 @@ class TestQECCompiler:
         )
 
         assert gadget.call_log["resolved_targets"] == [(logical_qubit, stabilizer_code)]
+        assert gadget.call_log["quantum_memory"] == qec_compiler.ctx.quantum_memory
         assert compiled.circuit_instructions == ["M 0"]
         assert visualized["path"] == Path("visuals/out.svg")
         assert visualized["primitive"] == primitive

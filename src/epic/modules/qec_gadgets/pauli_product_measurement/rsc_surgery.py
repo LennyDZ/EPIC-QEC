@@ -2,6 +2,7 @@ from typing import List, Set, Tuple
 
 from pydantic import field_validator
 
+from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure.pauli import PauliChar
 from epic.core.data_structure.tanner_graph import TannerEdge, TannerGraph
 from epic.core.data_structure.tanner_node import CheckNode, CheckNode
@@ -38,7 +39,6 @@ class RSCSurgery(PPM):
 
     def _check_axis(
         self,
-        resolved_targets: List[Tuple[LogicalQubit, StabilizerCode]],
         lop_involved,
     ) -> int:
 
@@ -206,6 +206,7 @@ class RSCSurgery(PPM):
         self,
         resolved_targets: List[Tuple[LogicalQubit, StabilizerCode]],
         record,
+        quantum_memory: QuantumMemory,
         timestep,
         objective_distance: int,
     ):
@@ -238,7 +239,7 @@ class RSCSurgery(PPM):
         merge_type = self.product_to_measure.string[0]
 
         # Get axis along which the merge occurs, horizontal (0) or vertical (1)
-        axis = self._check_axis(resolved_targets, lop_involved)
+        axis = self._check_axis(lop_involved)
 
         ## Compute translated lop, i.e. the chain that is on the merge boundary.
         # The current lop.target_nodes may represent a chain far from the merge boundary.
@@ -285,20 +286,44 @@ class RSCSurgery(PPM):
         primitives = []
         lop_updates = {}
 
+        ancilla_qubits_to_node = dict()
+        ancilla_qubits_locked = quantum_memory.lock_ancilla_qubits(
+            n=len(merged_system.check_nodes) + len(ancilla_system.variable_nodes),
+            requestor_id=self.id,
+        )
+        for node, phys_qubit in zip(
+            merged_system.check_nodes | ancilla_system.variable_nodes,
+            ancilla_qubits_locked,
+        ):
+            ancilla_qubits_to_node[node] = phys_qubit
+
         init_ancilla = ApplyGate(
             target=ancilla_system,
             target_nodes=ancilla_system.variable_nodes | ancilla_system.check_nodes,  # type: ignore
+            physical_data_qubits={k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},  # type: ignore
+            physical_ancilla_qubits=ancilla_qubits_to_node,
             gates=(
                 ["RX"] if merge_type == PauliChar.Z else ["RZ"]
             ),  # Init in dual of the merge type.
         )
         merged_syndrome = ExtractSyndrome(
             target=merged_system,
+            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                merged_system.variable_nodes
+            )
+            | {k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},  # type: ignore
+            physical_ancilla_qubits=ancilla_qubits_to_node,
             rounds=objective_distance,
             tag=f"rsc_surgery_merged_syndrome_{self.tag}",
         )
         ancilla_readout = Readout(
             target=ancilla_system,
+            physical_data_qubits={
+                k: v
+                for k, v in ancilla_qubits_to_node.items()
+                if isinstance(k, VariableNode)
+            },
+            physical_ancilla_qubits=ancilla_qubits_to_node,  # readout look only at data qubits, no need for ancilla.
             readout_basis=merge_type.dual(),
             tag=f"rsc_surgery_measurement_{self.tag}",
         )
@@ -306,6 +331,10 @@ class RSCSurgery(PPM):
         split_syndrome = [
             ExtractSyndrome(
                 target=initial_code,
+                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    initial_code.variable_nodes
+                ),
+                physical_ancilla_qubits=ancilla_qubits_to_node,
                 rounds=objective_distance,
                 tag=f"rsc_surgery_split_syndrome_{self.tag}",
             )
@@ -356,5 +385,9 @@ class RSCSurgery(PPM):
                 tag=f"rsc_surgery_{self.tag}",
             )
         ]
+
+        quantum_memory.unlock_ancilla_qubits(
+            qubits=list(ancilla_qubits_locked), owner_id=self.id
+        )
 
         return lop_updates, observable, primitives

@@ -69,7 +69,6 @@ class PrimitiveCompiler(BaseModel):
     def compile(
         self,
         primitive_instruction: QECPrimitive,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: MappingProxyType[TannerNode, QubitPortState],
         parent_gadget_id: UUID,
@@ -82,7 +81,6 @@ class PrimitiveCompiler(BaseModel):
 
         result = implementation.compile(
             instruction=primitive_instruction,
-            memory=memory,
             record=record,
             det_graph_port=det_graph_port,
             parent_gadget_id=parent_gadget_id,

@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict
 from epic.core.experiment.noise_model import NoiseModel
 
 from ..qec_object import Measurement
-from .measurement_record import MeasurementRecord
 from ..qec_object import Detector, Observable
+
+from .measurement_record import MeasurementRecord
 
 
 class CompiledExperiment(BaseModel):
@@ -64,7 +65,7 @@ class CompiledExperiment(BaseModel):
     def to_stim_program(
         self,
         observables: List[List[str]],
-        noise_model: NoiseModel,
+        noise_model: NoiseModel | None = None,
     ) -> str:
         """Render the compiled experiment as a Stim program and apply noise.
 
@@ -107,4 +108,6 @@ class CompiledExperiment(BaseModel):
 
         program = "\n".join(lines)
 
+        if noise_model is None:
+            return program
         return noise_model.apply_model(program)

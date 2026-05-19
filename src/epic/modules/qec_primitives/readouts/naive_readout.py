@@ -1,14 +1,15 @@
-from types import MappingProxyType
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Tuple
 from uuid import UUID
 
-from epic.core.compilation import QuantumMemory
-from epic.core.qec_object.detector import NodeKnowledge
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure import CheckNode, TannerNode
-from epic.core.data_structure.pauli import PauliChar
-from epic.core.qec_object import Detector, Measurement
-from epic.core.qec_object.detector import DetectorGraphPort, QubitPortState
+from epic.core.data_structure import PauliChar
+from epic.core.qec_object import (
+    Detector,
+    Measurement,
+    DetectorGraphPort,
+    QubitPortState,
+    NodeKnowledge,
+)
 from epic.core.qec_primitives.interfaces import PrimitiveImplementation, Readout
 
 
@@ -18,7 +19,6 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
     def compile(
         self,
         instruction: Readout,
-        memory: QuantumMemory,
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
@@ -33,11 +33,7 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
         )
         nm = []
         for node in instruction.target.variable_nodes:
-            if not memory.is_allocated(node):
-                raise ValueError(
-                    f"Cannot measure node {node.id} in gadget={parent_gadget_id} as it is not allocated in memory."
-                )
-            nm.append(str(memory.get_slot(node)))
+            nm.append(str(instruction.physical_data_qubits[node].integer_index))
             new_m = Measurement(
                 node_id=node.id,
                 parent_gadget_id=parent_gadget_id,
@@ -45,6 +41,7 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
                 tag=f"readout_{node.tag}",
             )
             new_measurements[node.id] = new_m
+
         instructions.append(f"M{instruction.readout_basis.value} {' '.join(nm)}")
 
         detectors: List[Detector] = []
@@ -101,6 +98,5 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
         new_dg_port = DetectorGraphPort()
         for node in instruction.target.variable_nodes:
             new_dg_port[node] = QubitPortState(knowledge=new_port_state)
-        memory.free_qubits(list(instruction.target.variable_nodes))
 
         return instructions, list(new_measurements.values()), detectors, new_dg_port

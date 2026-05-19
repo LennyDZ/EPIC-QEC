@@ -36,18 +36,18 @@ The context stores the following data:
 - `operator_to_qubits`: a map from a logical operator's ID to the ID of the logical qubit it belongs to.
 - `qubit_to_code`: similar to the previous one, but for logical qubits belonging to a code.
 - `detector_port`: a state object used to create detectors between primitives. See the [primitives guide](qec_primitives.md) for more details.
-- `quantum_memory`: a `QuantumMemory` object that stores the assignment of physical qubits to Tanner-graph nodes.
+- `quantum_memory`: a `QuantumMemory` object that stores the assignment of physical qubits to the data nodes and a pool of ancilla available for the gadget to reserve.
 - `measurement_record`: a `MeasurementRecord` object that stores all measurements, alongside indexing that allows them to be explored efficiently.
 - `compilation_time`: a kind of internal clock tracking which cycle we are in. This is not really used, though.
 
 Although the logic is quite straightforward, the following points are worth noting:
- - First, when codes are allocated, they are added to the context's memory alongside their logical qubits and the corresponding logical operators. The context stores these structures until they are freed. While they are stored, we expect that nothing will modify them, except for logical-operator corrections, which are handled only by the compiler itself.
+ - First, when codes are allocated, they are added to the context's memory alongside their logical qubits and the corresponding logical operators. The context stores these structures until they are freed. While they are stored, we expect that nothing will modify them, except for logical-operator corrections, which are handled only by the compiler itself. When allocated, physical qubits are assigned to each data qubits of the code (not to checks, as they aren't necessary map 1-1 with physical qubits).
 
 - Second, logical-operator corrections are added to the logical operators at the end of each gadget, in `ctx.add_updates(lop_updates)` in the pseudocode. They are stored within the `LogicalOperator` object itself as a list of measurements, which will flip the observable outcome if their outcome parity is odd.
 
 - Finally, observables are "resolved" when they are added to the context. This means that we append to their set of measurements the corrections that exist in each of the logical operators involved in the observables, and we correctly refer the measurements to those created by the primitives.
 
-Also, the context is supposed to be modified only by the compiler, so we tried, as much as possible, to provide only views of the different objects to gadgets and primitives. Quantum memory is still allocated inside primitives, which is not ideal. This will be fixed in the near future; see the targeted design fix here.
+Also, the context is supposed to be modified only by the compiler, so we tried, as much as possible, to provide only views of the different objects to gadgets and primitives. Quantum memory is given to gadgets, that are allowed to lock/free ancillas. This is not ideal, and we'll eventually find a way to restrict the interface.
  
 
 

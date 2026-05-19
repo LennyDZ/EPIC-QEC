@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.qec_object.logical_qubit import LogicalQubit
 
 from ..qec_object import (
@@ -53,6 +54,7 @@ class LogicGadget(QECGadget):
         self,
         resolved_targets: List[Tuple[LogicalQubit, StabilizerCode]],
         record: MeasurementRecordView,
+        quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
@@ -71,6 +73,7 @@ class CodeGadget(QECGadget):
         self,
         resolved_targets: List[StabilizerCode],
         record: MeasurementRecordView,
+        quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:

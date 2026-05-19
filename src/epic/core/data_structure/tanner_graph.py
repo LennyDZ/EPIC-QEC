@@ -4,6 +4,7 @@ from typing import Dict, List, Set, Tuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from scipy.sparse import csr_matrix
+
 from .tanner_node import TannerNode, VariableNode, CheckNode
 from .pauli import PauliChar
 

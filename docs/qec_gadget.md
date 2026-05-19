@@ -15,6 +15,7 @@ def compile(
         self,
         resolved_targets: List[StabilizerCode], # List[Tuple[LogicalQubit, StabilizerCode]]
         record: MeasurementRecordView,
+        quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
@@ -22,6 +23,7 @@ def compile(
 
 The function is given the resolved targets, which are codes for `CodeGadget` and logical qubits with their host codes for `LogicGadget`. It also receives the following information from the compiler:
 - A view of the measurement record, which is an object maintained by the compiler that contains the measurements performed so far. *Why though? I'm not sure anymore, and I should remove this parameter ASAP.*
+- An access to the quantum memory, to reserve eventally needed ancilla and to be aware of the data qubits assignement.
 - The timestep, which indicates the position at which this gadget was processed by the compiler.
 - The objective distance of the whole experiment. This can typically be used to determine how many rounds of error correction should be performed.
 
@@ -50,6 +52,7 @@ class RSCSurgery(LogicGadget):
         self,
         resolved_targets: List[Tuple[LogicalQubit, StabilizerCode]],
         record,
+        quantum_memory,
         timestep,
         objective_distance: int,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
@@ -80,10 +83,21 @@ class RSCSurgery(LogicGadget):
             code1.tanner_graph | code2.tanner_graph, connecting_edges
         )
 
+        # Get ancilla for the ancilla data qubits in the merge
+        # And for the checks, so that we can use them to measure the stabilizser
+        # Make sure to unlock them at the end
+        ancilla = quantum_memory.lock_ancilla_qubits(n=len(ancilla_system.variable_nodes + merged_code.check_nodes), requestor_id=self.id)
+
+        # map ancilla to node so we always reuse the same
+        # This is not strictly necessary, and we could for example reserve less ancilla and use them to measure several different stabilizers
+        ancilla_qubits_to_node = {...}
+
         # Primitive 1: initialize the ancilla qubits in the right basis.
         init_ancilla = ApplyGate(
             target=ancilla_system,
             target_nodes=ancilla_system.variable_nodes | ancilla_system.check_nodes,  # type: ignore
+            physical_data_qubits={k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},  # type: ignore
+            physical_ancilla_qubits=ancilla_qubits_to_node,
             gates=(
                 ["RX"] if m_type == PauliChar.Z else ["RZ"]
             ),  # Initialize in the dual basis of the merge type.
@@ -92,6 +106,11 @@ class RSCSurgery(LogicGadget):
         # Primitive 2: do d rounds of syndrome measurement on the merged system.
         merged_syndrome = ExtractSyndrome(
             target=merged_system,
+            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                merged_system.variable_nodes
+            )
+            | {k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},
+            physical_ancilla_qubits=ancilla_qubits_to_node,
             rounds=objective_distance,
             tag=f"rsc_surgery_merged_syndrome_{self.tag}",
         )
@@ -99,6 +118,12 @@ class RSCSurgery(LogicGadget):
         # Primitive 3: read out the ancilla system in the right basis.
         ancilla_readout = Readout(
             target=ancilla_system,
+            physical_data_qubits={
+                k: v
+                for k, v in ancilla_qubits_to_node.items()
+                if isinstance(k, VariableNode)
+            },
+            physical_ancilla_qubits=ancilla_qubits_to_node,
             readout_basis=m_type.dual(),
             tag=f"rsc_surgery_measurement_{self.tag}",
         )
@@ -107,6 +132,10 @@ class RSCSurgery(LogicGadget):
         split_syndrome = [
             ExtractSyndrome(
                 target=initial_code,
+                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    initial_code.variable_nodes
+                ),
+                physical_ancilla_qubits=ancilla_qubits_to_node,
                 rounds=objective_distance,
                 tag=f"rsc_surgery_split_syndrome_{self.tag}",
             )
@@ -151,6 +180,10 @@ class RSCSurgery(LogicGadget):
             ),
         }
 
+        quantum_memory.unlock_ancilla_qubits(
+            qubits=list(ancilla), owner_id=self.id
+        )
+
         return correction, observable, primitives
 ```
 
@@ -159,6 +192,7 @@ Although the full implementation may require some tedious computation to navigat
 We now state some important points to remember when implementing a gadget:
 - The state, meaning the Tanner-graph structure, of the stabilizer-code object must not be changed by the gadget. To build the merged code, for example, we build a Tanner graph that uses references to the code's graph, but we do not modify it.
 - The logical operators must not be changed directly. We only provide `LogicalOperatorUpdate`, which will be processed by the compiler after the gadget is processed. These corrections will be effective only in the next gadget. A logical-operator update can also remap the logical operator to some other support, as long as it stays within the same code.
+- All the ancilla reserved (locked) should be unlock. Otherwise they will not be reusable by the next gadgets.
 - The measurements in the observables and corrections must include the primitive ID and the gadget ID. Then the compiler will associate them with the last measurement instruction of the given node ID that was added in the corresponding primitive.
 - The observable's tag is used as the variable name for it.
 - If the observable corresponds to a logical measurement, it must specify which logical operators are associated with it. This is required so that the compiler can complete it with the corrections previously added to these logical operators.

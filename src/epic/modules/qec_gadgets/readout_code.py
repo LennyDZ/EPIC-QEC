@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure.pauli import PauliChar
 from epic.core.language.qec_gadget import CodeGadget
 from epic.core.qec_object import LogicalOperatorUpdate, Observable
@@ -19,6 +20,7 @@ class ReadoutCode(CodeGadget):
         self,
         resolved_targets: List[StabilizerCode],
         record: MeasurementRecordView,
+        quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
@@ -27,6 +29,10 @@ class ReadoutCode(CodeGadget):
         for code in resolved_targets:
             ro = Readout(
                 target=code.tanner_graph,
+                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    code.tanner_graph.variable_nodes
+                ),
+                physical_ancilla_qubits={},  # readout look only at data qubits
                 readout_basis=PauliChar.Z,
                 tag=f"readout_{code.name}",
             )
