@@ -130,6 +130,14 @@ class StabilizerCode(BaseModel):
 
         return self
 
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, StabilizerCode):
+            return NotImplemented
+        return self.id == other.id
+
     @classmethod
     def from_pcm(
         cls,

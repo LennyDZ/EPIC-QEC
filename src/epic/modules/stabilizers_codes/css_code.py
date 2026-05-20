@@ -49,8 +49,8 @@ class CSSCode(StabilizerCode):
         hx: np.ndarray,
         hz: np.ndarray,
         logical_qubits: List[Tuple[List[int], List[int]]],
-        var_coordinate: Dict[int, Tuple[int, ...]],
-        check_coordinate: Dict[int, Tuple[int, ...]],
+        var_coordinate: Dict[int, Tuple[int, ...]] | None = None,
+        check_coordinate: Dict[int, Tuple[int, ...]] | None = None,
     ) -> Self:
         """Construct a CSS code from separate Hx and Hz parity check matrices.
 

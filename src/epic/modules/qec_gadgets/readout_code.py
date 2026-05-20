@@ -37,15 +37,17 @@ class ReadoutCode(CodeGadget):
                 tag=f"readout_{code.name}",
             )
             primitives.append(ro)
-            obs = Observable(
-                tag=f"readout_{self.tag}",
-                logical_operators_involved=[code.logical_qubits[0].logical_z],
-                measurements={
-                    Measurement(
-                        n.id, parent_gadget_id=self.id, parent_primitive_id=ro.id
-                    )
-                    for n in code.logical_qubits[0].logical_z.target_nodes
-                },
-            )
-            observables.append(obs)
+            observables = [
+                Observable(
+                    tag=f"readout_{lq.name}",
+                    logical_operators_involved=[lq.logical_z],
+                    measurements={
+                        Measurement(
+                            n.id, parent_gadget_id=self.id, parent_primitive_id=ro.id
+                        )
+                        for n in lq.logical_z.target_nodes
+                    },
+                )
+                for lq in code.logical_qubits
+            ]
         return {}, observables, primitives

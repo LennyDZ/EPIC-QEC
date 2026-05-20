@@ -3,6 +3,7 @@ from uuid import UUID
 from functools import reduce
 from operator import or_
 
+import sympy as sp
 import xgi
 import numpy as np
 import ldpc.mod2 as m2a
@@ -120,20 +121,26 @@ class HomologicalMeasurement(PPM):
             The modified delta1 matrix with low-weight delta zero.
         """
         # v is any matrix whose rows form a basis of v^T*f_0 | v in ker(H_d^T)
-        v_in_ker = m2a.kernel(H_d.T)
+        v_in_ker = m2a.kernel(H_d.T).toarray()  # type: ignore
         vT_f0 = v_in_ker @ f0
-        mV = m2a.row_basis(vT_f0)
+
+        col_basis = sp.Matrix(vT_f0).columnspace()
+        mV = np.array(sp.Matrix.vstack(*[v.T for v in col_basis])).astype(np.int8)
         # reduced row echelon form v
-        mV = m2a.reduced_row_echelon(mV)
+        mV, _, _, _ = m2a.reduced_row_echelon(mV)
 
         # define W over GF(2) so that ker(W) = im(delta1)
-        mW = None
+        left_null_basis = sp.Matrix(delta1.copy()).T.nullspace()
+        mW = np.array(sp.Matrix.vstack(*[v.T for v in left_null_basis])).astype(np.int8)
 
         # add rows of V to W to zero out the pivot columns of V in W
         # put W in row echelon form with zero-rows removed
-        mW = m2a.reduced_row_echelon(mW)
+        mW, _, _, _ = m2a.reduced_row_echelon(mW)
 
-        def rnd_invertible_matrix(rows, cols, max_attempts=1000):
+        if mW.shape[0] == 0 and mV.shape[0] == 0:
+            return np.empty((0, 0), dtype=np.int8)
+
+        def rnd_invertible_matrix(rows, cols, max_attempts=100):
             for _ in range(max_attempts):
                 m = np.random.randint(0, 2, size=(rows, cols))
                 if m2a.rank(m) == m.shape[0]:  # Check if the matrix is invertible
@@ -143,20 +150,50 @@ class HomologicalMeasurement(PPM):
             )
 
         delta0 = mW
+        d0_row, d0_col = delta0.shape
 
         for i in range(num_random_samples):
-            mA = rnd_invertible_matrix(rows, cols)
-            mB = np.random.randint(0, 2, size=(rows, cols))
+            mA = rnd_invertible_matrix(mW.shape[0], mW.shape[0])
+            mB = np.random.randint(0, 2, size=(d0_col, mV.shape[0]))
 
             prod_1 = mA @ mW
             prod_2 = mB @ mV
+
             d1_max_row_w = max(np.sum(delta1, axis=1))
-            if max(np.sum(prod_1 + prod_2, axis=1)) < d1_max_row_w:
-                delta0 = prod_1 + prod_2
+            if prod_2:
+                if max(np.sum(prod_1 + prod_2, axis=1)) < d1_max_row_w:
+                    delta0 = prod_1 + prod_2
             if max(np.sum(prod_1, axis=1)) < d1_max_row_w:
                 delta0 = prod_1
 
         return delta0
+
+    # @staticmethod
+    # def _build_from_cellulation(
+    #     delta1_star: np.ndarray, f0_star: np.ndarray, H_d: np.ndarray, max_cycle_weight: int = 10
+    # ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    #     """
+    #     Build the cone code from a cellulation
+    #     """
+    #     for row in delta1:
+    #         new_rows = ...
+    #         new_zero_row = np.zeros_like(row)
+    #         d1 = ...
+    #         f0 = ...
+
+    #     d1 = HomologicalMeasurement._greedy_to_cheeger_of_one(d1)
+    #     d0 = HomologicalMeasurement._random_search_for_low_weight_delta_zero(d1, H_d, f0)
+
+    #     for row in d0:
+    #         if np.sum(row) > limit:
+    #             #Add new edges (rows of ∂1, along with
+    #             # corresponding zero-columns of f0) within the
+    #             # cycle defined by c to break it into smaller
+    #             # cycles. This results in replacing the high
+    #             # weight row c with multiple lower weight rows
+    #             # corresponding to the new cycles.
+
+    #     return d0, d1, f0
 
     @staticmethod
     def _build_cone_code(
@@ -184,21 +221,24 @@ class HomologicalMeasurement(PPM):
         indexed_var_nodes = {
             node: idx for idx, node in enumerate(base_system.variable_nodes)  # type: ignore
         }
+
+        d_checks = [node for node in base_system.check_nodes if node.check_type == ptype.dual()]  # type: ignore
         indexed_check_nodes = {
-            node: idx for idx, node in enumerate(base_system.check_nodes)  # type: ignore
+            node: idx for idx, node in enumerate(d_checks)  # type: ignore
         }
 
         h_d = np.zeros(
             (len(indexed_check_nodes), len(indexed_var_nodes)), dtype=np.int8
         )
+
         for e in base_system.edges:
-            if e.check_node.check_type == ptype.dual():
+            if e.check_node in indexed_check_nodes:
                 h_d[
                     indexed_check_nodes[e.check_node],
                     indexed_var_nodes[e.variable_node],
                 ] = 1
 
-        nz = 0
+        nz = h_d.shape[0]
         n = len(base_system.variable_nodes)  # type: ignore
 
         # Build f1, f0* and delta1* by removing columns and rows according to eq.49
@@ -233,8 +273,12 @@ class HomologicalMeasurement(PPM):
         delta1 = HomologicalMeasurement._greedy_to_cheeger_of_one(delta1_star)
 
         # 3: add zeros columns to f0* to match the dimensions of the cone code
+        # delta1 has shape (new_num_checks, support_width); the Cheeger algorithm
+        # may have added extra checks (rows) beyond delta1_star.shape[0], each of
+        # which corresponds to a new ancilla variable node (column of f0).
         h, w = delta1.shape
-        num_new_cols = h - delta1_star.shape[1]
+        num_new_cols = h - delta1_star.shape[0]
+
         f0 = np.hstack([f0_star, np.zeros((f0_star.shape[0], num_new_cols))])
 
         # 4
@@ -244,18 +288,39 @@ class HomologicalMeasurement(PPM):
 
         # 8 - 18: Cellulation if sparsity not good enough
         # if bad_sparsity:
-        #     ...
+        #     delta1, delta0, f0 = HomologicalMeasurement._build_from_cellulation(
+        #         delta1_star, f0_star
+        #     )
 
-        # Format back to Tanner graph objects:
+        # Format back to Tanner graph objects.
+        # If all existing nodes carry 4D coordinates (x, y, sys_x, sys_y), assign the
+        # ancilla nodes to a new system row so the TannerGraphVisualizer 4D layout keeps
+        # each sub-system in its own subplot.
+        _all_existing = list(base_system.variable_nodes) + list(base_system.check_nodes)
+        _coord_dims = {len(n.coordinates) for n in _all_existing if n.coordinates is not None}
+        if len(_coord_dims) == 1 and next(iter(_coord_dims)) == 4:
+            _existing_systems = {
+                (n.coordinates[2], n.coordinates[3])
+                for n in _all_existing if n.coordinates is not None
+            }
+            _anc_sys = (0, max(s[1] for s in _existing_systems) + 1)
+            _anc_coords_var: list[tuple[int, ...] | None] = [(i, 0) + _anc_sys for i in range(f0.shape[1])]
+            _anc_coords_c: list[tuple[int, ...] | None] = [(i, -1) + _anc_sys for i in range(delta1.shape[1])]
+            _anc_coords_dc: list[tuple[int, ...] | None] = [(i, 1) + _anc_sys for i in range(delta0.shape[0])]
+        else:
+            _anc_coords_var = [None] * f0.shape[1]
+            _anc_coords_c = [None] * delta1.shape[1]
+            _anc_coords_dc = [None] * delta0.shape[0]
+
         # f0 columns correspond to new nodes
-        new_var_nodes = [VariableNode(tag=f"av_{i}") for i in range(f0.shape[1])]
+        new_var_nodes = [VariableNode(tag=f"av_{i}", coordinates=_anc_coords_var[i]) for i in range(f0.shape[1])]
         # new checks of the ptype to measure are rows of delta1.T (or f1 transpose)
         new_c_nodes = [
-            CheckNode(tag=f"asc_{i}", check_type=ptype) for i in range(delta1.shape[0])
+            CheckNode(tag=f"asc_{i}", check_type=ptype, coordinates=_anc_coords_c[i]) for i in range(delta1.shape[1])
         ]
         # new checks of the dual type are rows of delta0
         new_dual_c_nodes = [
-            CheckNode(tag=f"ascd_{i}", check_type=ptype.dual())
+            CheckNode(tag=f"ascd_{i}", check_type=ptype.dual(), coordinates=_anc_coords_dc[i])
             for i in range(delta0.shape[0])
         ]
 
@@ -265,7 +330,7 @@ class HomologicalMeasurement(PPM):
             ancilla_edges.add(
                 TannerEdge(
                     variable_node=new_var_nodes[col],
-                    check_node=new_dual_c_nodes[row],
+                    check_node=new_c_nodes[row],
                     pauli_checked=ptype,
                 )
             )
@@ -288,7 +353,7 @@ class HomologicalMeasurement(PPM):
         for row, col in np.argwhere(f1.T == 1):
             connecting_edges.add(
                 TannerEdge(
-                    variable_node=indexed_var_nodes.inverse[col],  # type: ignore
+                    variable_node=next(k for k, v in indexed_var_nodes.items() if v == col),  # type: ignore
                     check_node=new_c_nodes[row],  # type: ignore
                     pauli_checked=ptype,
                 )
@@ -297,7 +362,7 @@ class HomologicalMeasurement(PPM):
             connecting_edges.add(
                 TannerEdge(
                     variable_node=new_var_nodes[col],  # type: ignore
-                    check_node=indexed_check_nodes.inverse[row],  # type: ignore
+                    check_node=next(k for k, v in indexed_check_nodes.items() if v == row),  # type: ignore
                     pauli_checked=ptype.dual(),
                 )
             )
@@ -415,10 +480,25 @@ class HomologicalMeasurement(PPM):
                         parent_gadget_id=self.id,
                         parent_primitive_id=cone_syndrome.id,
                     )
-                    for n in ancilla_system.check_nodes  # type: ignore
+                    for n in ancilla_system.check_nodes
+                    if n.check_type == ptype  # type: ignore
                 },
                 tag=f"hm_PP_{self.tag}",
             )
         ]
 
-        return {}, observable, primitives
+        correction_path = {}
+
+        lop_update = LogicalOperatorUpdate(
+            new_correction={
+                Measurement(
+                    n.id,
+                    parent_gadget_id=self.id,
+                    parent_primitive_id=ancilla_readout.id,
+                )
+                for n in correction_path
+                if isinstance(n, VariableNode)
+            },
+        )
+
+        return {lop_involved[0].id: lop_update}, observable, primitives
