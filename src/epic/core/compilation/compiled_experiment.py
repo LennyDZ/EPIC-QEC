@@ -47,8 +47,8 @@ class CompiledExperiment(BaseModel):
         rec_terms = [self._measurement_to_rec_term(m) for m in detector.measurements]
         if detector.coordinates:
             coords = ", ".join(str(c) for c in detector.coordinates)
-            return f"DETECTOR({coords}) {' '.join(rec_terms)}"
-        return f"DETECTOR {' '.join(rec_terms)}"
+            return f"DETECTOR({coords}) {' '.join(rec_terms)} # {detector.tag}"
+        return f"DETECTOR {' '.join(rec_terms)} # {detector.tag}"
 
     def _format_observable_line(self, observable: Observable, index: int) -> str:
         """Build the Stim line for an observable include block."""

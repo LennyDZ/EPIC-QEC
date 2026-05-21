@@ -72,15 +72,14 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             **instruction.physical_ancilla_qubits,
         }
 
-        if instruction.gates[-1] in gate_to_knowledge:
-            node_knowledge = gate_to_knowledge[instruction.gates[-1]]
-        else:
-            node_knowledge = NodeKnowledge.UNKNOWN
-
-        if node_knowledge != NodeKnowledge.UNKNOWN:
-            for t in sanitized_targets:
-                for node in t:
-                    new_dg_port[node] = QubitPortState(knowledge=node_knowledge)
+        for t in sanitized_targets:
+            for node in t:
+                if instruction.gates[-1] in gate_to_knowledge:
+                    new_dg_port[node] = QubitPortState(
+                        knowledge=gate_to_knowledge[instruction.gates[-1]]
+                    )
+                elif instruction.break_detector_graph:
+                    new_dg_port[node] = QubitPortState(knowledge=NodeKnowledge.UNKNOWN)
 
         for gate in instruction.gates:
             slots = " ".join(

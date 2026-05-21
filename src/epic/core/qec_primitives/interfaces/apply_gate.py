@@ -21,6 +21,13 @@ class ApplyGate(QECPrimitive):
         default_factory=list, description="The gates to be applied."
     )
 
+    break_detector_graph: bool = Field(
+        default=False,
+        description=(
+            "Whether to break the detector graph (i.e. node knowledge go to unknown for nodes on which a gate is applied). Default is False."
+        ),
+    )
+
     @field_validator("target_nodes")
     def validate_target_nodes_shape(cls, target_nodes):
         """Validate that target nodes are either all flat nodes or all node tuples."""
