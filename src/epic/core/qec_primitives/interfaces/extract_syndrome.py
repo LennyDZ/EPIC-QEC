@@ -106,6 +106,16 @@ class ExtractSyndrome(QECPrimitive):
 
         if check not in dgp:
             check_knowledge = NodeKnowledge.UNKNOWN
+            n = self.target.get_neighbourhood(check)  # type: ignore
+            if all(node in dgp for node in n) and len(n) > 0:
+                if dgp[next(iter(n))].knowledge in {NodeKnowledge.RZ, NodeKnowledge.RX}:
+                    reset_neighbor = dgp[next(iter(n))].knowledge
+                    if all(dgp[node].knowledge == reset_neighbor for node in n):
+                        check_knowledge = (
+                            NodeKnowledge.RZ
+                            if reset_neighbor == NodeKnowledge.RZ
+                            else NodeKnowledge.RX
+                        )
         else:
             check_knowledge = dgp[check].knowledge
         match check_knowledge:
@@ -118,7 +128,7 @@ class ExtractSyndrome(QECPrimitive):
                     )
                 measurement_in_detectors.append(latest)
             case NodeKnowledge.UNKNOWN:
-                return None  # If the check is in unknown state, we cannot be sure about the outcome, so no detector is formed
+                return None  # If the check was in unknown state, we cannot be sure about the outcome, so no detector is formed
             case NodeKnowledge.MZ | NodeKnowledge.MX:
                 if check_knowledge.basis() != check.check_type:
                     return None  # If the check was measured in a different basis, we cannot be sure about the outcome, so no detector is formed
@@ -134,11 +144,17 @@ class ExtractSyndrome(QECPrimitive):
                 # If it was reset in the opposite basis, we cannot be sure about the outcome, so no detector is formed
                 if check_knowledge.basis() != check.check_type:
                     return None
+                if check not in dgp:
+                    return Detector(
+                        measurements=measurement_in_detectors,
+                        tag=f"all_neigbors_reset_{check.tag}",
+                    )
             case _:
                 raise ValueError(f"Invalid known check state: {check_knowledge}")
 
         # Handle neighbors know state.
         extra_measurements = []
+
         for v in dgp[check].connected_nodes:
             match dgp[v].knowledge:
                 case NodeKnowledge.RZ | NodeKnowledge.RX:
