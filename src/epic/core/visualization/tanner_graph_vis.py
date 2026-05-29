@@ -232,9 +232,9 @@ class TannerGraphVisualizer:
 
         coord_lengths = {len(coords_by_node[node]) for node in all_nodes}
         if 0 in coord_lengths and len(coord_lengths) > 1:
-            raise ValueError("Either all nodes must have coordinates or none.")
+            coords_by_node = {}
         if len(coord_lengths) > 1:
-            raise ValueError("All node coordinates must have the same dimension.")
+            coords_by_node = {}
 
         dim = coord_lengths.pop()
         if dim not in {0, 2, 3, 4}:
@@ -401,7 +401,8 @@ class TannerGraphVisualizer:
             ax.grid(alpha=0.12, linewidth=0.6, linestyle=":")
 
         if dim == 0:
-            fig, ax = plt.subplots(figsize=(9, 5))
+            width = 9
+            fig, ax = plt.subplots(figsize=(width, 10))
 
             var_nodes = sorted(graph.variable_nodes, key=lambda n: n.tag)
             check_nodes = sorted(graph.check_nodes, key=lambda n: n.tag)
@@ -417,15 +418,17 @@ class TannerGraphVisualizer:
                 x_checks = [c for c in check_nodes if c.check_type == PauliChar.X]
                 z_checks = [c for c in check_nodes if c.check_type == PauliChar.Z]
                 for i, node in enumerate(sorted(x_checks, key=lambda n: n.tag)):
-                    pos[node] = (-1.0, float(-i))
+                    pos[node] = (-width / 3, float(-i))
                 for i, node in enumerate(sorted(z_checks, key=lambda n: n.tag)):
-                    pos[node] = (1.0, float(-i))
+                    pos[node] = (width / 3, float(-i))
             else:
                 for i, node in enumerate(check_nodes):
-                    pos[node] = (1.0, float(-i))
+                    pos[node] = (width / 3, float(-i))
 
             _draw_single_axis(ax, pos)
-            ax.set_title("Tanner Graph (Bipartite Layout)")
+            ax.set_title(
+                title if title is not None else "Tanner Graph (Bipartite Layout)"
+            )
             return _finalize_figure(fig, ax)
 
         if dim == 2:

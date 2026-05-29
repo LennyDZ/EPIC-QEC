@@ -143,6 +143,8 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             )
             single_round_instructions.append("TICK")
 
+        # Measure ancilla qubits
+
         # Z checks:
         z_cnot_steps = [[] for _ in range(z_color_count + 1)]
         for edge in z_edges:
@@ -158,7 +160,6 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             )
             single_round_instructions.append("TICK")
 
-        # Measure ancilla qubits
         check_order = list(instruction.target.check_nodes)
         single_round_instructions.append(
             f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in check_order)}"
@@ -185,6 +186,7 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             detector_zero = instruction._detector_round_zero(
                 record,
                 check,
+                instruction.target.get_neighbourhood(check),  # type: ignore
                 det_graph_port,
                 measurements_by_node[check][0],
                 tag=f"{instruction.tag}_det_{check.tag}_r0",

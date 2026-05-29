@@ -23,6 +23,11 @@ class MeasurementRecord(BaseModel):
         default_factory=dict, init=False
     )
 
+    @property
+    def size(self) -> int:
+        """Return the number of measurements in the record."""
+        return len(self._measurements)
+
     def _index_measurement(self, measurement: Measurement) -> None:
         """Index a single measurement by node id, gadget timestep, primitive timestep, and event type."""
         self._by_node_id.setdefault(measurement.node_id, []).append(measurement)

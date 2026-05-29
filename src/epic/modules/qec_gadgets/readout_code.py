@@ -16,6 +16,8 @@ class ReadoutCode(CodeGadget):
     """Reads out a stabilizer code by measuring all data qubits in the Z basis and
     building the final detectors that close the detector graph."""
 
+    readout_basis: PauliChar = PauliChar.Z
+
     def compile(
         self,
         resolved_targets: List[StabilizerCode],
@@ -26,6 +28,7 @@ class ReadoutCode(CodeGadget):
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
         primitives: List[QECPrimitive] = []
         observables: List[Observable] = []
+
         for code in resolved_targets:
             ro = Readout(
                 target=code.tanner_graph,
@@ -33,19 +36,29 @@ class ReadoutCode(CodeGadget):
                     code.tanner_graph.variable_nodes
                 ),
                 physical_ancilla_qubits={},  # readout look only at data qubits
-                readout_basis=PauliChar.Z,
-                tag=f"readout_{code.name}",
+                readout_basis=self.readout_basis,
+                tag=f"readout_{self.tag}",
             )
             primitives.append(ro)
             observables = [
                 Observable(
-                    tag=f"readout_{lq.name}",
-                    logical_operators_involved=[lq.logical_z],
+                    tag=f"readout_{self.tag}_{lq.name}",
+                    logical_operators_involved=[
+                        (
+                            lq.logical_z
+                            if self.readout_basis == PauliChar.Z
+                            else lq.logical_x
+                        )
+                    ],
                     measurements={
                         Measurement(
                             n.id, parent_gadget_id=self.id, parent_primitive_id=ro.id
                         )
-                        for n in lq.logical_z.target_nodes
+                        for n in (
+                            lq.logical_z.target_nodes
+                            if self.readout_basis == PauliChar.Z
+                            else lq.logical_x.target_nodes
+                        )
                     },
                 )
                 for lq in code.logical_qubits

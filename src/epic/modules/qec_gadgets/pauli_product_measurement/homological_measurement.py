@@ -8,7 +8,7 @@ import xgi
 import numpy as np
 import ldpc.mod2 as m2a
 
-from epic.core.compilation.measurement_record import MeasurementRecordView
+from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer as TGV
 from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure import (
     PauliChar,
@@ -31,6 +31,7 @@ from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
 from epic.core.qec_primitives.interfaces.readout import Readout
 from epic.modules.qec_gadgets.pauli_product_measurement.ppm import PPM
 from epic.modules.stabilizers_codes.css_code import CSSCode
+from epic.core.data_structure.graph_algorithm import GraphAlgorithm as ga
 
 
 class HomologicalMeasurement(PPM):
@@ -297,30 +298,51 @@ class HomologicalMeasurement(PPM):
         # ancilla nodes to a new system row so the TannerGraphVisualizer 4D layout keeps
         # each sub-system in its own subplot.
         _all_existing = list(base_system.variable_nodes) + list(base_system.check_nodes)
-        _coord_dims = {len(n.coordinates) for n in _all_existing if n.coordinates is not None}
+        _coord_dims = {
+            len(n.coordinates) for n in _all_existing if n.coordinates is not None
+        }
         if len(_coord_dims) == 1 and next(iter(_coord_dims)) == 4:
             _existing_systems = {
                 (n.coordinates[2], n.coordinates[3])
-                for n in _all_existing if n.coordinates is not None
+                for n in _all_existing
+                if n.coordinates is not None
             }
             _anc_sys = (0, max(s[1] for s in _existing_systems) + 1)
-            _anc_coords_var: list[tuple[int, ...] | None] = [(i, 0) + _anc_sys for i in range(f0.shape[1])]
-            _anc_coords_c: list[tuple[int, ...] | None] = [(i, -1) + _anc_sys for i in range(delta1.shape[1])]
-            _anc_coords_dc: list[tuple[int, ...] | None] = [(i, 1) + _anc_sys for i in range(delta0.shape[0])]
+            _anc_coords_var: list[tuple[int, ...] | None] = [
+                (i, 0) + _anc_sys for i in range(f0.shape[1])
+            ]
+            _anc_coords_c: list[tuple[int, ...] | None] = [
+                (i, -1) + _anc_sys for i in range(delta1.shape[1])
+            ]
+            _anc_coords_dc: list[tuple[int, ...] | None] = [
+                (i, 1) + _anc_sys for i in range(delta0.shape[0])
+            ]
         else:
             _anc_coords_var = [None] * f0.shape[1]
             _anc_coords_c = [None] * delta1.shape[1]
             _anc_coords_dc = [None] * delta0.shape[0]
 
         # f0 columns correspond to new nodes
-        new_var_nodes = [VariableNode(tag=f"av_{i}", coordinates=_anc_coords_var[i]) for i in range(f0.shape[1])]
+        new_var_nodes = [
+            VariableNode(tag=f"av_{i}", coordinates=_anc_coords_var[i])
+            for i in range(f0.shape[1])
+        ]
         # new checks of the ptype to measure are rows of delta1.T (or f1 transpose)
         new_c_nodes = [
-            CheckNode(tag=f"asc_{i}", check_type=ptype, coordinates=_anc_coords_c[i]) for i in range(delta1.shape[1])
+            CheckNode(
+                tag=f"asc{ptype.value}_{i}",
+                check_type=ptype,
+                coordinates=_anc_coords_c[i],
+            )
+            for i in range(delta1.shape[1])
         ]
         # new checks of the dual type are rows of delta0
         new_dual_c_nodes = [
-            CheckNode(tag=f"ascd_{i}", check_type=ptype.dual(), coordinates=_anc_coords_dc[i])
+            CheckNode(
+                tag=f"ascd_{ptype.dual().value}_{i}",
+                check_type=ptype.dual(),
+                coordinates=_anc_coords_dc[i],
+            )
             for i in range(delta0.shape[0])
         ]
 
@@ -403,6 +425,11 @@ class HomologicalMeasurement(PPM):
             for lq in logical_qubits
         ]
 
+        anticommuting_lop = [
+            lq.logical_z if ptype == PauliChar.X else lq.logical_x
+            for lq in logical_qubits
+        ]
+
         ancilla_system, connecting_edges = self._build_cone_code(
             codes_set, lop_involved, ptype
         )
@@ -429,7 +456,7 @@ class HomologicalMeasurement(PPM):
 
         init_ancilla = ApplyGate(
             target=ancilla_system,
-            target_nodes=ancilla_system.variable_nodes | ancilla_system.check_nodes,  # type: ignore
+            target_nodes=ancilla_system.variable_nodes,  # type: ignore
             physical_data_qubits=ancilla_sys_data_qubits,
             physical_ancilla_qubits=checks_qubits,  # type: ignore
             gates=(
@@ -451,7 +478,7 @@ class HomologicalMeasurement(PPM):
         ancilla_readout = Readout(
             target=ancilla_system,
             physical_data_qubits=ancilla_sys_data_qubits,
-            physical_ancilla_qubits=checks_qubits,  # type: ignore
+            physical_ancilla_qubits={k: v for k, v in checks_qubits.items() if isinstance(k, CheckNode) and k in ancilla_system.check_nodes},  # type: ignore
             readout_basis=ptype.dual(),
             tag=f"hm_ancilla_{self.tag}",
         )
@@ -487,7 +514,9 @@ class HomologicalMeasurement(PPM):
             )
         ]
 
-        correction_path = {}
+        correction = self._find_correction(
+            cone_system, ancilla_system, anticommuting_lop
+        )
 
         lop_update = LogicalOperatorUpdate(
             new_correction={
@@ -496,9 +525,8 @@ class HomologicalMeasurement(PPM):
                     parent_gadget_id=self.id,
                     parent_primitive_id=ancilla_readout.id,
                 )
-                for n in correction_path
-                if isinstance(n, VariableNode)
+                for n in correction
             },
         )
 
-        return {lop_involved[0].id: lop_update}, observable, primitives
+        return {anticommuting_lop[0].id: lop_update}, observable, primitives

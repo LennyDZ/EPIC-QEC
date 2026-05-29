@@ -1,8 +1,10 @@
 from pathlib import Path
-from typing import Any, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from uuid import UUID
 import warnings
 
 from debug.warnings import CodeBelowDistanceWarning
+from epic.core.qec_object.logical_operator import LogicalOperatorUpdate
 
 from .compiled_experiment import CompiledExperiment
 from .compilation_context import CompilationContext
@@ -39,6 +41,7 @@ class QECCompiler:
             StabilizerCode | tuple[LogicalQubit, StabilizerCode]
         ],
         observables: List[Observable] | None,
+        lop_updates: Dict[UUID, LogicalOperatorUpdate],
         gadget_tag: str,
     ) -> None:
         """Render a Tanner-graph view for a compiled primitive within a gadget.
@@ -48,6 +51,7 @@ class QECCompiler:
             primitive: Primitive instruction being visualized.
             resolved_targets: Concrete gadget targets resolved from context.
             observables: Observables emitted by the gadget, if any.
+            lop_updates: Updates to logical operators within the gadget.
             gadget_tag: Human-readable gadget label used in the visualization title.
         """
         highlights = []
@@ -112,6 +116,17 @@ class QECCompiler:
                         f"observable: {obs.tag}",
                     )
                 )
+
+        for lop_id, lop_update in lop_updates.items():
+            for node in lop_update.new_correction:
+                highlights.append(
+                    (
+                        {t.node_id for t in lop_update.new_correction},
+                        "auto",
+                        f"lop update",
+                    )
+                )
+
         TannerGraphVisualizer.visualize(
             primitive_target,
             highlight_nodes=[
@@ -208,6 +223,7 @@ class QECCompiler:
                         p_op,
                         resolved_targets,
                         observables,
+                        lop_updates,
                         gadget.tag,
                     )
 
