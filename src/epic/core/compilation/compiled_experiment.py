@@ -83,13 +83,17 @@ class CompiledExperiment(BaseModel):
         lines = []
         existing_observable_by_tag = {obs.tag: obs for obs in self.observables}
         seen_meas = 0
+        repeat = 1
         for instruction in self.circuit_instructions:
+
+            if instruction.startswith("REPEAT"):
+                repeat = int(instruction.split(" ")[1])
+            elif not instruction.startswith("    "):
+                repeat = 1
+
             if (
                 instruction.startswith("M") or instruction.startswith("    M")
             ) and verbose:
-                repeat = 1
-                if instruction.startswith("    "):
-                    repeat = 3
                 elem = instruction.split(" ")
                 elem = [e for e in elem if e != ""]
                 num_meas = (len(elem) - 1) * repeat
@@ -97,16 +101,16 @@ class CompiledExperiment(BaseModel):
                 seen_meas += num_meas
             lines.append(instruction)
         for i, detector in enumerate(self.detectors):
-            pre = (
-                f"""# Detector {detector.tag} includes measurements: {[m.tag for m in detector.measurements]}"""
-                if verbose
-                else ""
-            )
-            verb = f" - Det Idx: {i}" if verbose else ""
+            pre = f"""# Detector {detector.tag} includes measurements: {[m.tag for m in detector.measurements]}"""
+            verb = f" - Det Idx: {i}"
             l = self._format_detector_line(detector)
-            lines.append(pre)
-            lines.append(l + verb)
+            if verbose:
+                lines.append(pre)
+                lines.append(l + verb)
+            else:
+                lines.append(l)
         stim_observable = []
+
         for ob in observables:
             new_ob_lops = []
             new_ob_measurements = set()

@@ -176,6 +176,4 @@ class PPM(LogicGadget):
             if val == 1:
                 correction_nodes.add(ancilla_col_nodes[i])
 
-                print(f"In correction: {ancilla_col_nodes[i].tag}")
-
         return correction_nodes

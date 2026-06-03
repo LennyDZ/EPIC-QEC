@@ -57,10 +57,16 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
                 "ApplyGate cannot compile measurement gates like M, MX, or MZ."
             )
 
+        sanitized_targets = self._sanitize_target_nodes(instruction.target_nodes)
+
+        if len(instruction.gates) == 0:
+            new_dg_port = DetectorGraphPort()
+            for n in sanitized_targets:
+                for node in n:
+                    new_dg_port[node] = QubitPortState(knowledge=NodeKnowledge.UNKNOWN)
+            return [], [], [], new_dg_port
         stim_instructions: List[str] = []
         new_dg_port = DetectorGraphPort()
-
-        sanitized_targets = self._sanitize_target_nodes(instruction.target_nodes)
 
         gate_to_knowledge = {
             "RZ": NodeKnowledge.RZ,

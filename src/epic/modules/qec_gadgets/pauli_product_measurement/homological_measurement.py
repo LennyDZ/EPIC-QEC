@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, cast
 from uuid import UUID
 from functools import reduce
 from operator import or_
@@ -54,7 +54,7 @@ class HomologicalMeasurement(PPM):
             The modified matrix with additional edges added to achieve a Cheeger constant of 1.
         """
         output_graph = matrix.copy()  # just to be safe
-        xgi_graph = xgi.convert.from_incidence_matrix(output_graph.T)  # type: ignore
+        xgi_graph = xgi.convert.from_incidence_matrix(output_graph.T, nodelabels=range(output_graph.shape[1]), edgelabels=range(output_graph.shape[0]))  # type: ignore
 
         def boundary_size(main_graph: xgi.Hypergraph, subset_nodes: tuple) -> float:
             count = 0
@@ -98,15 +98,37 @@ class HomologicalMeasurement(PPM):
                     "Failed to find an edge to increase Cheeger constant."
                 )
 
-        im = xgi.to_incidence_matrix(xgi_graph)
-        return im.toarray().T  # type: ignore
+        im, nodes, edges = xgi.to_incidence_matrix(xgi_graph, index=True)
+
+        node_to_row = {label: idx for idx, label in cast(Dict[int, int], nodes).items()}
+        edge_to_col = {label: idx for idx, label in cast(Dict[int, int], edges).items()}
+
+        original_node_labels = list(range(output_graph.shape[1]))
+        original_edge_labels = list(range(output_graph.shape[0]))
+
+        node_label_set = set(node_to_row)
+        edge_label_set = set(edge_to_col)
+
+        ordered_node_labels = original_node_labels + sorted(
+            node_label_set - set(original_node_labels)
+        )
+        ordered_edge_labels = original_edge_labels + sorted(
+            edge_label_set - set(original_edge_labels)
+        )
+
+        reordered = cast(Any, im).toarray()[
+            [node_to_row[label] for label in ordered_node_labels],
+            :,
+        ][:, [edge_to_col[label] for label in ordered_edge_labels]]
+
+        return reordered.T  # type: ignore
 
     @staticmethod
     def _random_search_for_low_weight_delta_zero(
         delta1: np.ndarray,
         H_d: np.ndarray,
         f0: np.ndarray,
-        num_random_samples: int = 1000,
+        num_random_samples: int = 100,
     ) -> np.ndarray:
         """
         Random search algorithm to find a low-weight delta zero matrix.
@@ -123,20 +145,35 @@ class HomologicalMeasurement(PPM):
         """
         # v is any matrix whose rows form a basis of v^T*f_0 | v in ker(H_d^T)
         v_in_ker = m2a.kernel(H_d.T).toarray()  # type: ignore
-        vT_f0 = v_in_ker @ f0
+        vT_f0 = (v_in_ker @ f0) % 2
 
-        col_basis = sp.Matrix(vT_f0).columnspace()
-        mV = np.array(sp.Matrix.vstack(*[v.T for v in col_basis])).astype(np.int8)
+        col_basis = m2a.row_basis(vT_f0.T).astype(np.int8)  # type: ignore
+        mV = col_basis.T
         # reduced row echelon form v
-        mV, _, _, _ = m2a.reduced_row_echelon(mV)
+        mV, _, _, tc = m2a.reduced_row_echelon(mV)
+        mV = (mV @ tc.T) % 2
+        mV, rank_v, _, pivot_cols = m2a.row_echelon(mV)
+        pivot_cols = np.asarray(pivot_cols[:rank_v], dtype=int)
 
         # define W over GF(2) so that ker(W) = im(delta1)
-        left_null_basis = sp.Matrix(delta1.copy()).T.nullspace()
-        mW = np.array(sp.Matrix.vstack(*[v.T for v in left_null_basis])).astype(np.int8)
+        left_null_basis = m2a.nullspace(delta1.copy().T)
+        mW = left_null_basis  # type: ignore
 
+        if not np.allclose(mW @ delta1 % 2, 0):
+            raise ValueError("mW @ delta1 % 2 != 0")
         # add rows of V to W to zero out the pivot columns of V in W
+        for row_index in range(mW.shape[0]):
+            for pivot_row_index, pivot_col in enumerate(pivot_cols):
+                if mW[row_index, pivot_col]:  # type: ignore
+                    mW[row_index] = (mW[row_index] + mV[pivot_row_index]) % 2  # type: ignore
+
         # put W in row echelon form with zero-rows removed
-        mW, _, _, _ = m2a.reduced_row_echelon(mW)
+        mW, _, _, tc = m2a.reduced_row_echelon(mW)
+        mW = (mW @ tc.T) % 2
+        mW = mW[~np.all(mW == 0, axis=1)]
+
+        if not np.allclose(mW @ delta1 % 2, 0):
+            raise ValueError(f"Failed. {mW @ delta1 % 2}")
 
         if mW.shape[0] == 0 and mV.shape[0] == 0:
             return np.empty((0, 0), dtype=np.int8)
@@ -155,19 +192,22 @@ class HomologicalMeasurement(PPM):
 
         for i in range(num_random_samples):
             mA = rnd_invertible_matrix(mW.shape[0], mW.shape[0])
+
             mB = np.random.randint(0, 2, size=(d0_col, mV.shape[0]))
 
-            prod_1 = mA @ mW
-            prod_2 = mB @ mV
-
-            d1_max_row_w = max(np.sum(delta1, axis=1))
-            if prod_2:
-                if max(np.sum(prod_1 + prod_2, axis=1)) < d1_max_row_w:
-                    delta0 = prod_1 + prod_2
-            if max(np.sum(prod_1, axis=1)) < d1_max_row_w:
+            prod_1 = (mA @ mW) % 2
+            prod_2 = (mB @ mV) % 2
+            d0_max_row_w = max(np.sum(delta0, axis=1))
+            if prod_2.any():
+                if max(np.sum((prod_1 + prod_2) % 2, axis=1)) < d0_max_row_w:
+                    delta0 = (prod_1 + prod_2) % 2
+            if max(np.sum(prod_1, axis=1)) < d0_max_row_w:
                 delta0 = prod_1
 
-        return delta0
+        if np.any((delta1.T @ delta0.T) % 2):
+            raise ValueError("Invalid delta0: not in kernel of delta1^T.")
+
+        return delta0.astype(np.int8)  # type: ignore
 
     # @staticmethod
     # def _build_from_cellulation(
@@ -224,18 +264,32 @@ class HomologicalMeasurement(PPM):
         }
 
         d_checks = [node for node in base_system.check_nodes if node.check_type == ptype.dual()]  # type: ignore
-        indexed_check_nodes = {
+        checks = [node for node in base_system.check_nodes if node.check_type == ptype]  # type: ignore
+
+        indexed_dual_check_nodes = {
             node: idx for idx, node in enumerate(d_checks)  # type: ignore
         }
 
+        indexed_other_check_nodes = {
+            node: idx for idx, node in enumerate(checks)  # type: ignore
+        }
+
         h_d = np.zeros(
-            (len(indexed_check_nodes), len(indexed_var_nodes)), dtype=np.int8
+            (len(indexed_dual_check_nodes), len(indexed_var_nodes)), dtype=np.int8
+        )
+        h_o = np.zeros(
+            (len(indexed_other_check_nodes), len(indexed_var_nodes)), dtype=np.int8
         )
 
         for e in base_system.edges:
-            if e.check_node in indexed_check_nodes:
+            if e.check_node in indexed_dual_check_nodes:
                 h_d[
-                    indexed_check_nodes[e.check_node],
+                    indexed_dual_check_nodes[e.check_node],
+                    indexed_var_nodes[e.variable_node],
+                ] = 1
+            elif e.check_node in indexed_other_check_nodes:
+                h_o[
+                    indexed_other_check_nodes[e.check_node],
                     indexed_var_nodes[e.variable_node],
                 ] = 1
 
@@ -257,14 +311,14 @@ class HomologicalMeasurement(PPM):
 
         # Remove rows among the first m that are 0 in the first n columns
         rows_to_remove = []
-        for i in range(len(indexed_check_nodes)):
+        for i in range(len(indexed_dual_check_nodes)):
             if not any(eq49_matrix[i, j] for j in range(n - len(cols_to_remove))):
                 rows_to_remove.append(i)
         eq49_matrix = np.delete(eq49_matrix, rows_to_remove, axis=0)
 
         # 1: Extract the f1, f0* and delta1* matrices
         support_width = len(idx_in_supp)
-        surviving_check_rows = len(indexed_check_nodes) - len(rows_to_remove)
+        surviving_check_rows = len(indexed_dual_check_nodes) - len(rows_to_remove)
         f1 = eq49_matrix[-n:, :support_width]
         f0_star_T = eq49_matrix[:surviving_check_rows, support_width:]
         f0_star = f0_star_T.T
@@ -384,7 +438,7 @@ class HomologicalMeasurement(PPM):
             connecting_edges.add(
                 TannerEdge(
                     variable_node=new_var_nodes[col],  # type: ignore
-                    check_node=next(k for k, v in indexed_check_nodes.items() if v == row),  # type: ignore
+                    check_node=next(k for k, v in indexed_dual_check_nodes.items() if v == row),  # type: ignore
                     pauli_checked=ptype.dual(),
                 )
             )
@@ -402,8 +456,6 @@ class HomologicalMeasurement(PPM):
 
         codes = [code for _, code in resolved_targets]
         logical_qubits = [lq for lq, _ in resolved_targets]
-
-        codes_set = set(codes)
 
         if not all(isinstance(c, CSSCode) for c in codes):
             raise ValueError("All target codes must be CSS codes.")
@@ -431,16 +483,17 @@ class HomologicalMeasurement(PPM):
         ]
 
         ancilla_system, connecting_edges = self._build_cone_code(
-            codes_set, lop_involved, ptype
+            codes, lop_involved, ptype  # type: ignore
         )
 
         cone_system = ancilla_system.connect_to(
-            reduce(or_, [code.tanner_graph for code in codes_set]), connecting_edges
+            reduce(or_, [code.tanner_graph for code in codes]), connecting_edges
         )
 
         qubits_for_ancilla_system = quantum_memory.lock_ancilla_qubits(
             len(ancilla_system.variable_nodes), self.id
         )
+
         ancilla_sys_data_qubits = {
             v: q
             for v, q in zip(ancilla_system.variable_nodes, qubits_for_ancilla_system)
@@ -449,6 +502,7 @@ class HomologicalMeasurement(PPM):
         qubits_for_merged_system_checks = quantum_memory.lock_ancilla_qubits(
             len(cone_system.check_nodes), self.id
         )
+
         checks_qubits = {
             c: q
             for c, q in zip(cone_system.check_nodes, qubits_for_merged_system_checks)
@@ -462,6 +516,38 @@ class HomologicalMeasurement(PPM):
             gates=(
                 ["RX"] if ptype == PauliChar.Z else ["RZ"]
             ),  # Init in dual of the merge type.
+        )
+
+        ptype_anc_syd = ExtractSyndrome(
+            target=TannerGraph(
+                variable_nodes=cone_system.variable_nodes,
+                check_nodes=set(
+                    [c for c in ancilla_system.check_nodes if c.check_type == ptype]
+                    + [
+                        c
+                        for c in cone_system.check_nodes
+                        if c.check_type == ptype.dual()
+                    ]
+                ),
+                edges={
+                    e
+                    for e in cone_system.edges
+                    if e.check_node in ancilla_system.check_nodes
+                    and e.check_node.check_type == ptype
+                }
+                | {
+                    e
+                    for e in cone_system.edges
+                    if e.check_node.check_type == ptype.dual()
+                },
+            ),  # type: ignore
+            rounds=1,
+            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                cone_system.variable_nodes  # type: ignore
+            )
+            | ancilla_sys_data_qubits,
+            physical_ancilla_qubits=checks_qubits,  # type: ignore
+            tag=f"hm_1st_syndrome_{self.tag}",
         )
 
         cone_syndrome = ExtractSyndrome(
@@ -496,7 +582,12 @@ class HomologicalMeasurement(PPM):
             for code in codes
         ]
 
-        primitives = [init_ancilla, cone_syndrome, ancilla_readout] + split_syndrome
+        primitives = [
+            init_ancilla,
+            ptype_anc_syd,
+            cone_syndrome,
+            ancilla_readout,
+        ] + split_syndrome
 
         observable = [
             Observable(
@@ -505,7 +596,7 @@ class HomologicalMeasurement(PPM):
                     Measurement(
                         n.id,
                         parent_gadget_id=self.id,
-                        parent_primitive_id=cone_syndrome.id,
+                        parent_primitive_id=ptype_anc_syd.id,
                     )
                     for n in ancilla_system.check_nodes
                     if n.check_type == ptype  # type: ignore

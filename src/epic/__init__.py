@@ -2,6 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from . import core, modules
 from .core.compilation import (
     CompiledExperiment,
     CompilationContext,
@@ -39,6 +40,7 @@ from .core.qec_object import (
 )
 from .modules import (
     CSSCode,
+    HomologicalMeasurement,
     InitCode,
     NaiveLogicalMeasurement,
     NaiveReadout,
@@ -51,6 +53,7 @@ from .modules import (
     SimpleSyndromeExtraction,
     SurfaceCode,
     ToricCode,
+    ZXColoringExtraction,
 )
 
 try:
@@ -68,6 +71,7 @@ __all__ = [
     "Detector",
     "FreeCode",
     "GraphAlgorithm",
+    "HomologicalMeasurement",
     "InitCode",
     "LogicGadget",
     "LogicalOperator",
@@ -103,5 +107,8 @@ __all__ = [
     "TannerNode",
     "ToricCode",
     "VariableNode",
+    "ZXColoringExtraction",
     "__version__",
+    "core",
+    "modules",
 ]

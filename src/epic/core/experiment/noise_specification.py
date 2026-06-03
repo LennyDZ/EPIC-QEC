@@ -74,6 +74,7 @@ class NoiseApplicationMode(Enum):
     AFTER_CLIFFORD = "AFTER_CLIFFORD"
     AFTER_RESET = "AFTER_RESET"
     BEFORE_MEASUREMENT = "BEFORE_MEASUREMENT"
+    BEFORE_ROUND = "BEFORE_ROUND"
 
 
 class NoiseSpecification(BaseModel):
