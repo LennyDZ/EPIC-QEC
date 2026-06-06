@@ -153,23 +153,60 @@ class StimLikeNoiseModel(NoiseModel):
     ) -> "StimLikeNoiseModel":
         noises: list[NoiseSpecification] = []
 
+        # Temporarily disabled: before-round depolarization needs explicit
+        # data-qubit targeting semantics before it can be safely applied.
+        # if before_round_data_depolarization is not None:
+        #     noises.append(
+        #         NoiseSpecification(
+        #             instruction=NoiseInstruction.DEPOLARIZE1,
+        #             probability=before_round_data_depolarization,
+        #             application_mode=NoiseApplicationMode.BEFORE_ROUND,
+        #             target_gates=ONE_QUBIT_CLIFFORD_GATES,
+        #         )
+        #     )
+
         if before_measure_flip_probability is not None:
+            # Use an anticommuting flip for X-basis measurements.
+            noises.append(
+                NoiseSpecification(
+                    instruction=NoiseInstruction.Z_ERROR,
+                    probability=before_measure_flip_probability,
+                    application_mode=NoiseApplicationMode.BEFORE_MEASUREMENT,
+                    target_gates=["MX", "MRX"],
+                )
+            )
             noises.append(
                 NoiseSpecification(
                     instruction=NoiseInstruction.X_ERROR,
                     probability=before_measure_flip_probability,
                     application_mode=NoiseApplicationMode.BEFORE_MEASUREMENT,
-                    target_gates=MEASUREMENT_GATES,
+                    target_gates=[
+                        "M",
+                        "MY",
+                        "MZ",
+                        "MR",
+                        "MRY",
+                        "MRZ",
+                    ],
                 )
             )
 
         if after_reset_flip_probability is not None:
+            # Use an anticommuting flip for X-basis resets.
+            noises.append(
+                NoiseSpecification(
+                    instruction=NoiseInstruction.Z_ERROR,
+                    probability=after_reset_flip_probability,
+                    application_mode=NoiseApplicationMode.AFTER_RESET,
+                    target_gates=["RX", "MRX"],
+                )
+            )
             noises.append(
                 NoiseSpecification(
                     instruction=NoiseInstruction.X_ERROR,
                     probability=after_reset_flip_probability,
                     application_mode=NoiseApplicationMode.AFTER_RESET,
-                    target_gates=RESET_GATES,
+                    target_gates=["R", "RY", "RZ", "MR", "MRY", "MRZ"],
                 )
             )
 
@@ -200,128 +237,4 @@ class StimLikeNoiseModel(NoiseModel):
         )
 
     def apply_model(self, compiled_program: str) -> str:
-        prepared_program = compiled_program
-        if self.after_reset_flip_probability is not None:
-            prepared_program = self._split_reset_lines_for_stim_parity(prepared_program)
-
-        noisy_program = super().apply_model(prepared_program)
-
-        if self.before_round_data_depolarization is None:
-            return noisy_program
-
-        return self._inject_before_round_data_depolarization(
-            noisy_program,
-            self.before_round_data_depolarization,
-        )
-
-    def _inject_before_round_data_depolarization(
-        self,
-        program: str,
-        probability: float,
-    ) -> str:
-        lines = program.splitlines()
-        data_targets = self._infer_data_targets(lines)
-
-        if not data_targets:
-            return program
-
-        out: list[str] = []
-        prev_gate_token: str | None = None
-        prev_non_tick_gate_token: str | None = None
-        round_boundary_gates = {
-            "REPEAT",
-            "R",
-            "RX",
-            "RY",
-            "RZ",
-            "MR",
-            "MRX",
-            "MRY",
-            "MRZ",
-            "M",
-            "MX",
-            "MY",
-            "MZ",
-            "X_ERROR",
-            "Y_ERROR",
-            "Z_ERROR",
-        }
-
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                out.append(line)
-                continue
-
-            raw_token = stripped.split(maxsplit=1)[0]
-            gate_token = self._normalize_gate_name(raw_token.split("(", 1)[0])
-
-            # Keep non-gate/annotation lines unchanged.
-            if gate_token in {
-                "DETECTOR",
-                "OBSERVABLE_INCLUDE",
-                "SHIFT_COORDS",
-                "QUBIT_COORDS",
-            }:
-                out.append(line)
-                continue
-
-            is_round_start_gate = (
-                gate_token in ONE_QUBIT_CLIFFORD_GATES
-                and prev_gate_token == "TICK"
-                and prev_non_tick_gate_token in round_boundary_gates
-            )
-            if is_round_start_gate:
-                out.append(f"DEPOLARIZE1({probability:.12g}) {data_targets}")
-
-            out.append(line)
-            prev_gate_token = gate_token
-            if gate_token != "TICK":
-                prev_non_tick_gate_token = gate_token
-
-        return "\n".join(out)
-
-    def _split_reset_lines_for_stim_parity(self, program: str) -> str:
-        lines = program.splitlines()
-        data_qubits = self._infer_data_qubits(lines)
-
-        if not data_qubits:
-            return program
-
-        reset_gates = {"R", "RX", "RY", "RZ"}
-        out: list[str] = []
-
-        for line in lines:
-            gate_name, targets = self._parse_stim_line(line)
-            if gate_name not in reset_gates or not targets:
-                out.append(line)
-                continue
-
-            parts = targets.split()
-            data_targets = [q for q in parts if q in data_qubits]
-            ancilla_targets = [q for q in parts if q not in data_qubits]
-
-            if data_targets and ancilla_targets:
-                out.append(f"{gate_name} {' '.join(data_targets)}")
-                out.append(f"{gate_name} {' '.join(ancilla_targets)}")
-            else:
-                out.append(line)
-
-        return "\n".join(out)
-
-    def _infer_data_targets(self, lines: list[str]) -> str:
-        return " ".join(self._infer_data_qubits(lines))
-
-    def _infer_data_qubits(self, lines: list[str]) -> list[str]:
-        data_qubits: list[str] = []
-        seen: set[str] = set()
-
-        for line in lines:
-            gate_name, targets = self._parse_stim_line(line)
-            if gate_name in {"M", "MX", "MY", "MZ"} and targets:
-                for q in targets.split():
-                    if q not in seen:
-                        seen.add(q)
-                        data_qubits.append(q)
-
-        return data_qubits
+        return super().apply_model(compiled_program)

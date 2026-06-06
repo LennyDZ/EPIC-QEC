@@ -1,16 +1,17 @@
+from . import qec_gadgets, qec_primitives, stabilizers_codes
 from .qec_gadgets import (
+    HomologicalMeasurement,
     InitCode,
     NaiveLogicalMeasurement,
     RSCSurgery,
     ReadoutCode,
-    TransversalCNOT,
 )
 from .qec_primitives import (
-    EmptyProcedure,
     NaiveReadout,
+    RSCSyndromeExtraction,
     SimpleGateApplication,
     SimpleSyndromeExtraction,
-    RSCSyndromeExtraction,
+    ZXColoringExtraction,
 )
 from .stabilizers_codes import (
     CSSCode,
@@ -22,18 +23,21 @@ from .stabilizers_codes import (
 
 __all__ = [
     "CSSCode",
-    "EmptyProcedure",
+    "HomologicalMeasurement",
     "InitCode",
     "NaiveLogicalMeasurement",
     "NaiveReadout",
     "NullCode",
     "RSCSurgery",
+    "RSCSyndromeExtraction",
     "ReadoutCode",
     "RotatedSurfaceCode",
     "SimpleGateApplication",
     "SimpleSyndromeExtraction",
-    "RSCSyndromeExtraction",
     "SurfaceCode",
     "ToricCode",
-    "TransversalCNOT",
+    "ZXColoringExtraction",
+    "qec_gadgets",
+    "qec_primitives",
+    "stabilizers_codes",
 ]
