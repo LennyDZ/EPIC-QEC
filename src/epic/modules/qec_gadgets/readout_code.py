@@ -40,27 +40,31 @@ class ReadoutCode(CodeGadget):
                 tag=f"readout_{self.tag}",
             )
             primitives.append(ro)
-            observables = [
-                Observable(
-                    tag=f"readout_{self.tag}_{lq.name}",
-                    logical_operators_involved=[
-                        (
-                            lq.logical_z
-                            if self.readout_basis == PauliChar.Z
-                            else lq.logical_x
-                        )
-                    ],
-                    measurements={
-                        Measurement(
-                            n.id, parent_gadget_id=self.id, parent_primitive_id=ro.id
-                        )
-                        for n in (
-                            lq.logical_z.target_nodes
-                            if self.readout_basis == PauliChar.Z
-                            else lq.logical_x.target_nodes
-                        )
-                    },
-                )
-                for lq in code.logical_qubits
-            ]
+            observables.extend(
+                [
+                    Observable(
+                        tag=f"readout_{self.tag}_{lq.name}",
+                        logical_operators_involved=[
+                            (
+                                lq.logical_z
+                                if self.readout_basis == PauliChar.Z
+                                else lq.logical_x
+                            )
+                        ],
+                        measurements={
+                            Measurement(
+                                n.id,
+                                parent_gadget_id=self.id,
+                                parent_primitive_id=ro.id,
+                            )
+                            for n in (
+                                lq.logical_z.target_nodes
+                                if self.readout_basis == PauliChar.Z
+                                else lq.logical_x.target_nodes
+                            )
+                        },
+                    )
+                    for lq in code.logical_qubits
+                ]
+            )
         return {}, observables, primitives

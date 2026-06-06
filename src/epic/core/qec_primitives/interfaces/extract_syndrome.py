@@ -74,17 +74,21 @@ class ExtractSyndrome(QECPrimitive):
         extra_measurements = []
         connected_nodes = dgp[check].connected_nodes if check in dgp else set()
         for v in neighbors | connected_nodes:
-            match dgp[v].knowledge:
+            if v not in dgp:
+                neighbor_knowledge = NodeKnowledge.UNKNOWN
+            else:
+                neighbor_knowledge = dgp[v].knowledge
+            match neighbor_knowledge:
                 case NodeKnowledge.RZ | NodeKnowledge.RX:
                     # If some neighbor was reset, in a different basis than the check, we cannot be sure about the outcome, so no detector is formed.
-                    if dgp[v].knowledge.basis() != check.check_type:
+                    if neighbor_knowledge.basis() != check.check_type:
                         return None
 
                 case NodeKnowledge.MZ | NodeKnowledge.MX:
                     # If some neighbor was measured, it is fine as long as it is in the same basis,
                     # but we need to include the latest measurement of that neighbor in the detector
 
-                    if dgp[v].knowledge.basis() == check.check_type:
+                    if neighbor_knowledge.basis() == check.check_type:
                         extra_measurements.append(record.latest_by_node_id(v.id))
                     else:
                         return None
