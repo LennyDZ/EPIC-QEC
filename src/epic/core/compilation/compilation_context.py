@@ -166,17 +166,21 @@ class CompilationContext:
         Register a code, its logical qubits, and their logical operators.
         Allocate physical qubits for the data qubits nodes
         """
-        self._uuid_memory[code.id] = code
-        self._naming_registry[code_varname] = code.id
-        for idx, qubit in enumerate(code.logical_qubits):
+        # Work on an internal deep copy so compile-time logical-operator/frame
+        # updates never mutate user-provided code objects reused across runs.
+        code_copy = code.model_copy(deep=True)
+
+        self._uuid_memory[code_copy.id] = code_copy
+        self._naming_registry[code_varname] = code_copy.id
+        for idx, qubit in enumerate(code_copy.logical_qubits):
             self._uuid_memory[qubit.id] = qubit
             self._naming_registry[lqb_name[idx]] = qubit.id
-            self._qubit_to_code[qubit.id] = code.id
+            self._qubit_to_code[qubit.id] = code_copy.id
             for op in [qubit.logical_x, qubit.logical_z]:
                 self._uuid_memory[op.id] = op
                 self._operator_to_qubit[op.id] = qubit.id
         self.quantum_memory.allocate_qubits(
-            qubits=list(code.tanner_graph.variable_nodes)
+            qubits=list(code_copy.tanner_graph.variable_nodes)
         )
 
     def unregister_code(self, code_varname: str):

@@ -85,9 +85,30 @@ class SurfaceCode(CSSCode):
         return [(boundary_top, boundary_left)]
 
     @classmethod
-    def from_distance(cls, distance: int, code_name: str = "surface") -> "SurfaceCode":
+    def from_distance(
+        cls,
+        distance: int,
+        code_name: str = "surface",
+        system: tuple[int, int] | None = None,
+    ) -> "SurfaceCode":
+        """Construct a planar surface code of the given distance.
+
+        Parameters
+        ----------
+        distance : int
+            Code distance (>= 2).
+        code_name : str, optional
+            Human-readable name for the code.
+        system : tuple[int, int] | None, optional
+            When provided, all node coordinates are extended to 4D as
+            ``(x, y, system[0], system[1])``.  This lets multiple codes live in
+            distinct sub-plots of the ``TannerGraphVisualizer`` 4D layout.
+        """
         hx, hz, var_coordinate, check_coordinate = cls._build_css_pcm(distance)
         logical_qubits = cls._build_default_logicals(distance, var_coordinate)
+        if system is not None:
+            var_coordinate = {k: v + system for k, v in var_coordinate.items()}
+            check_coordinate = {k: v + system for k, v in check_coordinate.items()}
         code = cls.from_css_pcm(
             code_name=code_name,
             hx=hx,

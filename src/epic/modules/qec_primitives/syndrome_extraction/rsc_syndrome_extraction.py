@@ -160,6 +160,7 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
             detector_zero = instruction._detector_round_zero(
                 record,
                 check,
+                instruction.target.get_neighbourhood(check),  # type: ignore
                 det_graph_port,
                 measurements[check][0],
                 tag=f"{instruction.tag}_det_{check.tag}_r0",

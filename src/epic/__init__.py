@@ -2,7 +2,14 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .core.compilation import CompiledExperiment, CompilationContext, MeasurementRecord, QECCompiler, QuantumMemory
+from . import core, modules
+from .core.compilation import (
+    CompiledExperiment,
+    CompilationContext,
+    MeasurementRecord,
+    QECCompiler,
+    QuantumMemory,
+)
 from .core.data_structure import (
     CheckNode,
     GraphAlgorithm,
@@ -33,7 +40,7 @@ from .core.qec_object import (
 )
 from .modules import (
     CSSCode,
-    EmptyProcedure,
+    HomologicalMeasurement,
     InitCode,
     NaiveLogicalMeasurement,
     NaiveReadout,
@@ -46,7 +53,7 @@ from .modules import (
     SimpleSyndromeExtraction,
     SurfaceCode,
     ToricCode,
-    TransversalCNOT,
+    ZXColoringExtraction,
 )
 
 try:
@@ -62,9 +69,9 @@ __all__ = [
     "CompilationContext",
     "CompiledExperiment",
     "Detector",
-    "EmptyProcedure",
     "FreeCode",
     "GraphAlgorithm",
+    "HomologicalMeasurement",
     "InitCode",
     "LogicGadget",
     "LogicalOperator",
@@ -99,7 +106,9 @@ __all__ = [
     "TannerGraph",
     "TannerNode",
     "ToricCode",
-    "TransversalCNOT",
     "VariableNode",
+    "ZXColoringExtraction",
     "__version__",
+    "core",
+    "modules",
 ]

@@ -47,10 +47,12 @@ class CompiledExperiment(BaseModel):
         rec_terms = [self._measurement_to_rec_term(m) for m in detector.measurements]
         if detector.coordinates:
             coords = ", ".join(str(c) for c in detector.coordinates)
-            return f"DETECTOR({coords}) {' '.join(rec_terms)}"
-        return f"DETECTOR {' '.join(rec_terms)}"
+            return f"DETECTOR({coords}) {' '.join(rec_terms)} # {detector.tag}"
+        return f"DETECTOR {' '.join(rec_terms)} # {detector.tag}"
 
-    def _format_observable_line(self, observable: Observable, index: int) -> str:
+    def _format_observable_line(
+        self, observable: Observable, index: int, verbose: bool = False
+    ) -> str:
         """Build the Stim line for an observable include block."""
 
         measurements = sorted(
@@ -58,14 +60,16 @@ class CompiledExperiment(BaseModel):
             key=lambda m: self.measurement_to_index.get(m, -1),
         )
         rec_terms = [self._measurement_to_rec_term(m) for m in measurements]
+        verb = f" # {observable.tag}" if verbose else ""
         if rec_terms:
-            return f"OBSERVABLE_INCLUDE({index}) {' '.join(rec_terms)}"
-        return f"OBSERVABLE_INCLUDE({index})"
+            return f"OBSERVABLE_INCLUDE({index}) {' '.join(rec_terms)}" + verb
+        return f"OBSERVABLE_INCLUDE({index})" + verb
 
     def to_stim_program(
         self,
         observables: List[List[str]],
         noise_model: NoiseModel | None = None,
+        verbose: bool = False,
     ) -> str:
         """Render the compiled experiment as a Stim program and apply noise.
 
@@ -78,11 +82,35 @@ class CompiledExperiment(BaseModel):
         """
         lines = []
         existing_observable_by_tag = {obs.tag: obs for obs in self.observables}
+        seen_meas = 0
+        repeat = 1
         for instruction in self.circuit_instructions:
+
+            if instruction.startswith("REPEAT"):
+                repeat = int(instruction.split(" ")[1])
+            elif not instruction.startswith("    "):
+                repeat = 1
+
+            if (
+                instruction.startswith("M") or instruction.startswith("    M")
+            ) and verbose:
+                elem = instruction.split(" ")
+                elem = [e for e in elem if e != ""]
+                num_meas = (len(elem) - 1) * repeat
+                instruction += f" # Meas {seen_meas-self.record.size} to {seen_meas-self.record.size + num_meas - 1}"
+                seen_meas += num_meas
             lines.append(instruction)
-        for detector in self.detectors:
-            lines.append(self._format_detector_line(detector))
+        for i, detector in enumerate(self.detectors):
+            pre = f"""# Detector {detector.tag} includes measurements: {[m.tag for m in detector.measurements]}"""
+            verb = f" - Det Idx: {i}"
+            l = self._format_detector_line(detector)
+            if verbose:
+                lines.append(pre)
+                lines.append(l + verb)
+            else:
+                lines.append(l)
         stim_observable = []
+
         for ob in observables:
             new_ob_lops = []
             new_ob_measurements = set()
@@ -104,7 +132,7 @@ class CompiledExperiment(BaseModel):
             )
 
         for i, stim_ob in enumerate(stim_observable):
-            lines.append(self._format_observable_line(stim_ob, i))
+            lines.append(self._format_observable_line(stim_ob, i, verbose=verbose))
 
         program = "\n".join(lines)
 

@@ -12,11 +12,14 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
+	"ldpc>=2.4.1",
 	"numpy>=1.26.4",
 	"pydantic>=2.13.3",
 	"pymatching>=2.3.1",
 	"sinter==1.14.0",
 	"stim>=1.15.0",
+	"sympy>=1.14.0",
+	"xgi>=0.10.2",
 ]
 
 [dependency-groups]

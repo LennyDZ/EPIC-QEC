@@ -1,13 +1,19 @@
+from . import apply_gates, readouts, syndrome_extraction
 from .apply_gates import SimpleGateApplication
-from .qec_procedures import EmptyProcedure
 from .readouts import NaiveReadout
-from .syndrome_extraction import SimpleSyndromeExtraction
-from .syndrome_extraction import RSCSyndromeExtraction
+from .syndrome_extraction import (
+    RSCSyndromeExtraction,
+    SimpleSyndromeExtraction,
+    ZXColoringExtraction,
+)
 
 __all__ = [
-    "EmptyProcedure",
     "NaiveReadout",
+    "RSCSyndromeExtraction",
     "SimpleGateApplication",
     "SimpleSyndromeExtraction",
-    "RSCSyndromeExtraction",
+    "ZXColoringExtraction",
+    "apply_gates",
+    "readouts",
+    "syndrome_extraction",
 ]

@@ -66,8 +66,7 @@ class InitCode(CodeGadget):
                         code.tanner_graph.variable_nodes
                     ),
                     physical_ancilla_qubits=ancilla_locked[code.id],
-                    target_nodes=code.tanner_graph.variable_nodes
-                    | code.tanner_graph.check_nodes,  # type: ignore
+                    target_nodes=code.tanner_graph.variable_nodes,  # type: ignore
                     gates=gates,
                 )
             )

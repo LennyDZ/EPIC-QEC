@@ -99,24 +99,30 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         # Reset ancilla qubits
         check_nodes = instruction.target.check_nodes
-        x_checks = [check for check in check_nodes if check.check_type == PauliChar.X]
+        ordered_checks = list(check_nodes)
+        x_checks = [
+            check for check in ordered_checks if check.check_type == PauliChar.X
+        ]
+        reset_instructions = []
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
-                stim_instructions.append(
-                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
+                reset_instructions.append(
+                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in ordered_checks])}"
                 )
             case PauliEigenState.X_plus:
-                stim_instructions.append(
-                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
+                reset_instructions.append(
+                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in ordered_checks])}"
                 )
             case _:
                 raise ValueError(
                     f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
                 )
-
+        # Reset ALL ancilla:
+        stim_instructions.extend(reset_instructions)
         x_coloring, x_color_count = self._color_edges(x_edges)
         z_coloring, z_color_count = self._color_edges(z_edges)
         single_round_instructions: List[str] = []
+
         # Apply CNOTs for X and Z edges separately
         # X checks:
         if x_checks:
@@ -158,10 +164,8 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             )
             single_round_instructions.append("TICK")
 
-        # Measure ancilla qubits
-        check_order = list(instruction.target.check_nodes)
         single_round_instructions.append(
-            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in check_order)}"
+            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in ordered_checks)}"
         )
         stim_instructions.append(f"REPEAT {instruction.rounds} {{")
         stim_instructions.extend(
@@ -171,29 +175,30 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         measurements_by_node = {}
         for r in range(instruction.rounds):
-            for m in check_order:
+            for m in ordered_checks:
                 measurement = Measurement(
                     node_id=m.id,
                     parent_gadget_id=parent_gadget_id,
                     parent_primitive_id=instruction.id,
                     tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
                 )
-                measurements_by_node.setdefault(m, []).append(measurement)
+                measurements_by_node.setdefault(m.id, []).append(measurement)
                 measurements.append(measurement)
 
-        for check in check_order:
+        for check in ordered_checks:
             detector_zero = instruction._detector_round_zero(
                 record,
                 check,
+                instruction.target.get_neighbourhood(check),  # type: ignore
                 det_graph_port,
-                measurements_by_node[check][0],
+                measurements_by_node[check.id][0],
                 tag=f"{instruction.tag}_det_{check.tag}_r0",
             )
             if detector_zero is not None:
                 detectors.append(detector_zero)
             for r in range(1, instruction.rounds):
-                previous_measurement = measurements_by_node[check][r - 1]
-                current_measurement = measurements_by_node[check][r]
+                previous_measurement = measurements_by_node[check.id][r - 1]
+                current_measurement = measurements_by_node[check.id][r]
                 detector = Detector(
                     measurements=[previous_measurement, current_measurement],
                     tag=f"{instruction.tag}_det_{check.tag}_r{r-1}_{r}",
@@ -201,10 +206,18 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 detectors.append(detector)
 
         new_graph_port = DetectorGraphPort()
-        for node in instruction.target.check_nodes | instruction.target.variable_nodes:
+        for node in instruction.target.check_nodes:
             new_graph_port[node] = QubitPortState(
                 knowledge=NodeKnowledge.STABLE,
                 connected_nodes=instruction.target.get_neighbourhood(node),
             )
+            for nei in instruction.target.get_neighbourhood(node):
+                if nei in new_graph_port:
+                    new_graph_port[nei].connected_nodes.add(node)
+                else:
+                    new_graph_port[nei] = QubitPortState(
+                        knowledge=NodeKnowledge.STABLE,
+                        connected_nodes={node},  # type: ignore
+                    )
 
         return stim_instructions, measurements, detectors, new_graph_port

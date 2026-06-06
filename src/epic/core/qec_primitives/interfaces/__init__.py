@@ -4,7 +4,6 @@ from .apply_gate import ApplyGate
 from .custom_primitive import CustomPrimitive
 from .extract_syndrome import ExtractSyndrome
 from .qec_primitive import PrimitiveImplementation, QECPrimitive
-from .qec_procedure import QECProcedure
 from .readout import Readout
 
 __all__ = [
@@ -13,6 +12,5 @@ __all__ = [
     "ExtractSyndrome",
     "PrimitiveImplementation",
     "QECPrimitive",
-    "QECProcedure",
     "Readout",
 ]

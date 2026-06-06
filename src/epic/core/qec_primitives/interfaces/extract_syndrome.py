@@ -1,8 +1,11 @@
+from typing import Set
+
 from pydantic import Field, field_validator
 import warnings
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure.tanner_node import CheckNode
+from epic.core.data_structure.pauli import PauliChar
+from epic.core.data_structure.tanner_node import CheckNode, VariableNode
 from epic.core.qec_object.detector import Detector, DetectorGraphPort, NodeKnowledge
 from epic.core.qec_object.measurement import Measurement
 
@@ -30,15 +33,17 @@ class ExtractSyndrome(QECPrimitive):
     def _detector_round_zero(
         record: MeasurementRecordView,
         check: CheckNode,
+        neighbors: Set[VariableNode],
         dgp: DetectorGraphPort,
         round_zero_measurement: Measurement,
         tag: str,
     ) -> Detector | None:
         measurement_in_detectors = [round_zero_measurement]
         if check not in dgp:
-            check_knowledge = NodeKnowledge.UNKNOWN
+            check_knowledge = NodeKnowledge.RZ
         else:
             check_knowledge = dgp[check].knowledge
+
         match check_knowledge:
             case NodeKnowledge.STABLE:
                 # By default, if a check was stable, we expect it to have the same parity as the previous round
@@ -60,36 +65,42 @@ class ExtractSyndrome(QECPrimitive):
                         f"No measurement found in record for stable check node {check.id}"
                     )
                 measurement_in_detectors.append(latest)
-
             case NodeKnowledge.RX | NodeKnowledge.RZ:
-                # If it was reset in the opposite basis, we cannot be sure about the outcome, so no detector is formed
-                if check_knowledge.basis() != check.check_type:
-                    return None
+                pass
             case _:
                 raise ValueError(f"Invalid known check state: {check_knowledge}")
 
         # Handle neighbors know state.
         extra_measurements = []
-        for v in dgp[check].connected_nodes:
-            match dgp[v].knowledge:
+        connected_nodes = dgp[check].connected_nodes if check in dgp else set()
+        for v in neighbors | connected_nodes:
+            if v not in dgp:
+                neighbor_knowledge = NodeKnowledge.UNKNOWN
+            else:
+                neighbor_knowledge = dgp[v].knowledge
+            match neighbor_knowledge:
                 case NodeKnowledge.RZ | NodeKnowledge.RX:
                     # If some neighbor was reset, in a different basis than the check, we cannot be sure about the outcome, so no detector is formed.
-                    if dgp[v].knowledge.basis() != check_knowledge.basis():
+                    if neighbor_knowledge.basis() != check.check_type:
                         return None
+
                 case NodeKnowledge.MZ | NodeKnowledge.MX:
                     # If some neighbor was measured, it is fine as long as it is in the same basis,
                     # but we need to include the latest measurement of that neighbor in the detector
-                    if dgp[v].knowledge.basis() != check.check_type:
-                        return None
-                    lm = record.latest_by_node_id(v.id)
-                    if lm is not None:
-                        extra_measurements.append(lm)
+
+                    if neighbor_knowledge.basis() == check.check_type:
+                        extra_measurements.append(record.latest_by_node_id(v.id))
                     else:
-                        warnings.warn(
-                            f"Neighbor {v.id} of stable check {check.id} was measured but no measurement found in record. This neighbor will be ignored in the detector formation, which may lead to missed detection events."
-                        )
+                        return None
                 case NodeKnowledge.STABLE:
-                    pass  # If some neighbor was stable, it does not affect the detector formation
+                    if check_knowledge != NodeKnowledge.STABLE:
+                        if check not in dgp[v].connected_nodes:
+                            pass
+                        else:
+                            # If the check is reset stable but some of its neighbors are stable, we cannot be sure about the outcome, so no detector is formed
+                            return None
+                    elif v not in connected_nodes:
+                        return None  # If the check is stable but some of its neighbors are stable but not connected to the check, we cannot be sure about the outcome, so no detector is formed
                 case NodeKnowledge.UNKNOWN:
                     # If some of its neighbors are in unknown state, we cannot be sure about the outcome, so no detector is formed
                     return None

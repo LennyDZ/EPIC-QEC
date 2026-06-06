@@ -25,12 +25,14 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
     ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
         instructions: List[str] = []
         new_measurements: Dict[UUID, Measurement] = {}
+        new_measurement_ordered = []
 
         new_port_state = (
             NodeKnowledge.MX
             if instruction.readout_basis == PauliChar.X
             else NodeKnowledge.MZ
         )
+
         nm = []
         for node in instruction.target.variable_nodes:
             nm.append(str(instruction.physical_data_qubits[node].integer_index))
@@ -41,10 +43,13 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
                 tag=f"readout_{node.tag}",
             )
             new_measurements[node.id] = new_m
+            new_measurement_ordered.append(new_m)
 
         instructions.append(f"M{instruction.readout_basis.value} {' '.join(nm)}")
 
         detectors: List[Detector] = []
+        checks_stable_with_measured_vars = set()
+
         for v in list(instruction.target.variable_nodes):
             var_port = det_graph_port.get(
                 v, QubitPortState(knowledge=NodeKnowledge.RZ)
@@ -66,7 +71,11 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
                             Detector(measurements=[new_measurements[v.id], lm])
                         )
                 case NodeKnowledge.STABLE:
-                    continue
+                    for c in det_graph_port[v].connected_nodes:
+                        if c.check_type == instruction.readout_basis:  # type: ignore
+                            if det_graph_port[c].knowledge == NodeKnowledge.STABLE:
+                                checks_stable_with_measured_vars.add(c)
+
                 case NodeKnowledge.UNKNOWN:
                     continue  # No detectors formed with variable nodes in UNKNOWN state
                 case _:
@@ -74,29 +83,32 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
                         f"Unexpected port state {var_port} for variable node {v.tag}"
                     )
 
-        for c in list(instruction.target.check_nodes):
-            if (
-                c.check_type == instruction.readout_basis
-                and det_graph_port[c].knowledge == NodeKnowledge.STABLE
-            ):
-                neighbors_var = instruction.target.get_neighbourhood(c)
-                if all(
-                    det_graph_port[nei].knowledge == NodeKnowledge.STABLE
-                    for nei in neighbors_var
-                ):
-                    # All neighbors are STABLE, so we can form a detector with just the new measurement
-                    last_check_measurement = record.latest_by_node_id(c.id)
-                    neighbors_meas = [new_measurements[v.id] for v in neighbors_var]
+        for c in checks_stable_with_measured_vars:
+            relatives = det_graph_port[c].connected_nodes
 
-                    detectors.append(
-                        Detector(
-                            measurements=neighbors_meas + [last_check_measurement],
-                            tag=f"readout_{c.tag}_and_neighbors",
-                        )
+            if all(v in instruction.target.variable_nodes for v in relatives):
+                # If all neighbors of the stable check are measured variable nodes, we can form a detector with the latest measurement of the check and the new measurements of its neighbors.
+                lm = record.latest_by_node_id(c.id)
+                if lm is None:
+                    raise ValueError(
+                        f"No previous measurement found for stable check node {c.id} required to form detector."
                     )
+                for v in relatives:
+                    if v.id not in new_measurements:
+                        raise ValueError(
+                            f"Expected measurement for variable node {v.tag} not found in new measurements."
+                        )
+                neighbor_measurements = [new_measurements[v.id] for v in relatives]
+
+                detectors.append(
+                    Detector(
+                        measurements=[lm] + neighbor_measurements,
+                        tag=f"readout_spans_{c.tag}",
+                    )
+                )
 
         new_dg_port = DetectorGraphPort()
         for node in instruction.target.variable_nodes:
             new_dg_port[node] = QubitPortState(knowledge=new_port_state)
 
-        return instructions, list(new_measurements.values()), detectors, new_dg_port
+        return instructions, new_measurement_ordered, detectors, new_dg_port
