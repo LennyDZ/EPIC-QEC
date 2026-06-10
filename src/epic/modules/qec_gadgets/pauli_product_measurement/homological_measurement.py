@@ -161,19 +161,28 @@ class HomologicalMeasurement(PPM):
 
         if not np.allclose(mW @ delta1 % 2, 0):
             raise ValueError("mW @ delta1 % 2 != 0")
-        # add rows of V to W to zero out the pivot columns of V in W
-        for row_index in range(mW.shape[0]):
-            for pivot_row_index, pivot_col in enumerate(pivot_cols):
-                if mW[row_index, pivot_col]:  # type: ignore
-                    mW[row_index] = (mW[row_index] + mV[pivot_row_index]) % 2  # type: ignore
 
-        # put W in row echelon form with zero-rows removed
+        # Normalize W (row echelon + zero row removal) before trying row-mixing.
         mW, _, _, tc = m2a.reduced_row_echelon(mW)
         mW = (mW @ tc.T) % 2
         mW = mW[~np.all(mW == 0, axis=1)]
+        mW_base = mW.copy()
 
-        if not np.allclose(mW @ delta1 % 2, 0):
-            raise ValueError(f"Failed. {mW @ delta1 % 2}")
+        # Row-mixing optimization: keep it only if it preserves ker(W) = im(delta1).
+        mW_mixed = mW_base.copy()
+        for row_index in range(mW_mixed.shape[0]):
+            for pivot_row_index, pivot_col in enumerate(pivot_cols):
+                if mW_mixed[row_index, pivot_col]:  # type: ignore
+                    mW_mixed[row_index] = (mW_mixed[row_index] + mV[pivot_row_index]) % 2  # type: ignore
+
+        mW_mixed, _, _, tc = m2a.reduced_row_echelon(mW_mixed)
+        mW_mixed = (mW_mixed @ tc.T) % 2
+        mW_mixed = mW_mixed[~np.all(mW_mixed == 0, axis=1)]
+
+        if np.allclose(mW_mixed @ delta1 % 2, 0):
+            mW = mW_mixed
+        else:
+            mW = mW_base
 
         if mW.shape[0] == 0 and mV.shape[0] == 0:
             return np.empty((0, 0), dtype=np.int8)
@@ -190,19 +199,27 @@ class HomologicalMeasurement(PPM):
         delta0 = mW
         d0_row, d0_col = delta0.shape
 
+        def _is_in_kernel(candidate: np.ndarray) -> bool:
+            return not np.any((delta1.T @ candidate.T) % 2)
+
         for i in range(num_random_samples):
             mA = rnd_invertible_matrix(mW.shape[0], mW.shape[0])
 
-            mB = np.random.randint(0, 2, size=(d0_col, mV.shape[0]))
+            mB = np.random.randint(0, 2, size=(mW.shape[0], mV.shape[0]))
 
             prod_1 = (mA @ mW) % 2
             prod_2 = (mB @ mV) % 2
             d0_max_row_w = max(np.sum(delta0, axis=1))
             if prod_2.any():
-                if max(np.sum((prod_1 + prod_2) % 2, axis=1)) < d0_max_row_w:
-                    delta0 = (prod_1 + prod_2) % 2
+                cand = (prod_1 + prod_2) % 2
+                if (
+                    max(np.sum(cand, axis=1)) < d0_max_row_w
+                    and _is_in_kernel(cand)
+                ):
+                    delta0 = cand
             if max(np.sum(prod_1, axis=1)) < d0_max_row_w:
-                delta0 = prod_1
+                if _is_in_kernel(prod_1):
+                    delta0 = prod_1
 
         if np.any((delta1.T @ delta0.T) % 2):
             raise ValueError("Invalid delta0: not in kernel of delta1^T.")

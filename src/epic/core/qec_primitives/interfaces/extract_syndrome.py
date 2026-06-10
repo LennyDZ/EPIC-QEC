@@ -1,10 +1,9 @@
-from typing import Dict, Self, Tuple
+from typing import Dict, Self, Tuple, Set
 
 from pydantic import Field, PrivateAttr, field_validator, model_validator
 import warnings
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure.pauli import PauliChar
 from epic.core.data_structure.tanner_node import CheckNode, VariableNode
 from epic.core.qec_object.detector import Detector, DetectorGraphPort, NodeKnowledge
 from epic.core.qec_object.measurement import Measurement

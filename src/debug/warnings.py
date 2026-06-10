@@ -18,6 +18,14 @@ class CodeBelowDistanceWarning(CompilerWarning):
         super().__init__(message)
 
 
+class EmptyInputWarning(CompilerWarning):
+    """Warning raised when empty input."""
+
+    def __init__(self):
+        message = f"Received an empty list targets."
+        super().__init__(message)
+
+
 class MissingNodeStatusWarning(CompilerWarning):
     """Warning raised when missing node statuses are defaulted to UNKNOWN."""
 

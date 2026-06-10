@@ -16,14 +16,14 @@ class NullCode(StabilizerCode):
 
     n: int = Field(
         description="Number of physical qubits in the code.",
-        default=0,
+        default=1,
     )
     k: int = Field(
-        description="Number of logical qubits in the code.", default=0, init=False
+        description="Number of logical qubits in the code.", default=1, init=False
     )
     d: int = Field(
         description="Distance of the code.",
-        default=0,
+        default=1,
         init=False,
     )
 

@@ -190,6 +190,11 @@ class QECCompiler:
         total_gadgets = len(program)
         compile_start = perf_counter()
 
+        if visual_output_path is not None:
+            visual_path = Path(visual_output_path)
+            if visual_path.exists():
+                visual_path.unlink()
+
         if show_progress:
             print(f"Starting compilation of {total_gadgets} gadget(s)")
 
@@ -214,6 +219,7 @@ class QECCompiler:
                         gadget.target_code,
                         gadget.code_varname,
                     )
+
                     if show_progress:
                         elapsed = self._format_duration(perf_counter() - gadget_start)
                         print(
