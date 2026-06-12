@@ -24,7 +24,7 @@ class AutQecTransversal(CodeGadget):
     swaps: List[Tuple[TannerNode, TannerNode]] = Field(
         description="A list of (qubit_index_1, qubit_index_2) pairs specifying the swaps to be applied as part of the automorphism."
     )
-    detector_check_map: Dict[CheckNode, Tuple[CheckNode]] = Field(
+    detector_check_map: Dict[CheckNode, Tuple[CheckNode, ...]] = Field(
         description="A mapping from check node indices to check node indices specifying how the automorphism permutes the checks of the code. The keys and values should correspond to the indices of the check nodes in the Tanner graph of the code."
     )
     
