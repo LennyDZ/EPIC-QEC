@@ -1,11 +1,11 @@
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from uuid import UUID
 
 from pydantic import Field
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure.tanner_node import CheckNode, TannerNode
+from epic.core.data_structure.tanner_node import CheckNode, TannerNode, VariableNode
 from epic.core.language.qec_gadget import CodeGadget
 from epic.core.qec_object.logical_operator import LogicalOperatorUpdate
 from epic.core.qec_object.observable import Observable
@@ -26,6 +26,11 @@ class AutQecTransversal(CodeGadget):
     )
     detector_check_map: Dict[CheckNode, Tuple[CheckNode]] = Field(
         description="A mapping from check node indices to check node indices specifying how the automorphism permutes the checks of the code. The keys and values should correspond to the indices of the check nodes in the Tanner graph of the code."
+    )
+    
+    swap_as_gates: bool = Field(
+        default=False,
+        description="Whether to implement the swaps as SWAP gates in the ApplyGate primitive, or to just relabel the qubits in the quantum memory."
     )
 
     def compile(
@@ -72,15 +77,22 @@ class AutQecTransversal(CodeGadget):
             primitives.append(a)
 
         for i, j in self.swaps:
-            a = ApplyGate(
-                target=code.tanner_graph,
-                target_nodes={i, j},  # type: ignore
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
-                physical_ancilla_qubits={},  # no ancillas needed for swaps
-                gates=["SWAP"],
-                tag=f"swap_{i.tag}_{j.tag}_of_automorphism",
-            )
-            primitives.append(a)
+            if not isinstance(i, VariableNode) or not isinstance(j, VariableNode):
+                raise ValueError(
+                    "swaps entries must be pairs of variable nodes from the target code."
+                )
+            if self.swap_as_gates:
+                a = ApplyGate(
+                    target=code.tanner_graph,
+                    target_nodes={i, j},  # type: ignore
+                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
+                    physical_ancilla_qubits={},  # no ancillas needed for swaps
+                    gates=["SWAP"],
+                    tag=f"swap_{i.tag}_{j.tag}_of_automorphism",
+                )
+                primitives.append(a)
+            else:
+                quantum_memory.swap_data_qubits(i, j)
 
         anc_for_syndrome = quantum_memory.lock_ancilla_qubits(
             len(code.tanner_graph.check_nodes), self.id

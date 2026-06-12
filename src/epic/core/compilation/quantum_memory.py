@@ -75,6 +75,24 @@ class QuantumMemory(BaseModel):
         """Return the physical qubit assigned to a data node."""
         return self._data_qubits_allocation[variable_node]
 
+    def swap_data_qubits(
+        self, first: VariableNode, second: VariableNode
+    ) -> None:
+        """Swap the physical assignments of two allocated data nodes."""
+        if first not in self._data_qubits_allocation:
+            raise RuntimeError(
+                f"Tried to swap data node {first.tag} that is not currently allocated."
+            )
+        if second not in self._data_qubits_allocation:
+            raise RuntimeError(
+                f"Tried to swap data node {second.tag} that is not currently allocated."
+            )
+
+        self._data_qubits_allocation[first], self._data_qubits_allocation[second] = (
+            self._data_qubits_allocation[second],
+            self._data_qubits_allocation[first],
+        )
+
     def allocate_qubits(
         self, qubits: VariableNode | Sequence[VariableNode]
     ) -> list[PhysicalQubit]:
