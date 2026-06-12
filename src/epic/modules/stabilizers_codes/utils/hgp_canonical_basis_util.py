@@ -9,7 +9,7 @@ def zero_till_i_vector(i, n):
 def find_stl_basis(m):
     H = m.copy()
     m, n = H.shape
-    K = np.eye(n)
+    K = np.eye(n, dtype=int)
     n_first_int = set(np.arange(n))
     idx_left = n_first_int.copy()
     for j in range(n):
