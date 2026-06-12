@@ -1,7 +1,6 @@
 from typing import Dict, Self, Tuple, Set
 
 from pydantic import Field, PrivateAttr, field_validator, model_validator
-import warnings
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.data_structure.tanner_node import CheckNode, VariableNode
