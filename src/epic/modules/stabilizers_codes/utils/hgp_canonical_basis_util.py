@@ -34,9 +34,10 @@ def find_stl_basis(m):
         )
         K += K_add
         K = K % 2
-    # Extract relevant row from idx_left
-    K = K[:, list(idx_left)]
-    F = np.eye(n, dtype=int)[:, list(idx_left)]
+    # Extract relevant columns in a deterministic order.
+    idx_left_sorted = sorted(idx_left)
+    K = K[:, idx_left_sorted]
+    F = np.eye(n, dtype=int)[:, idx_left_sorted]
     return K, F
 
 
