@@ -56,17 +56,6 @@ class ExtractSyndrome(QECPrimitive):
             self._has_detector_graph_map = True
         return self
 
-    @model_validator(mode="after")
-    def validate_target_if_has_detector_graph_map(self) -> Self:
-        if self._has_detector_graph_map:
-            if not all(
-                check in self.detector_graph_map for check in self.target.check_nodes
-            ):
-                raise ValueError(
-                    "When a custom detector graph map is provided, all check nodes in the target Tanner graph must be included as keys in it."
-                )
-        return self
-
     def _detector_round_zero(
         self,
         record: MeasurementRecordView,
@@ -81,9 +70,7 @@ class ExtractSyndrome(QECPrimitive):
         if self._has_detector_graph_map:
             # If a custom mapping is provided, we use it to determine the connections in the detector graph
             if check not in self.detector_graph_map:
-                raise ValueError(
-                    f"Check {check} is not in the provided detector_graph_map."
-                )
+                return None
             if dgp[check].knowledge != NodeKnowledge.STABLE:
                 raise ValueError(f"""
                     Check {check} is expected to be stable when using a custom detector_graph_map, but it is in state {dgp[check].knowledge}.
@@ -97,12 +84,13 @@ class ExtractSyndrome(QECPrimitive):
                     This is required because otherwise, effects of nodes measured in external scope would be wrongly combine with the mapping's target.
                     """)
 
+            
             measurement_in_detectors.extend(
                 [record.latest_by_node_id(n.id) for n in self.detector_graph_map[check]]
             )
             return Detector(
                 measurements=measurement_in_detectors,
-                tag=f"det_from_custom_map_[{self.detector_graph_map[check][0].tag}]-[{check.tag}]",
+                tag=f"det_from_custom_map_[{', '.join(str(n.tag) for n in self.detector_graph_map[check])}]-[{check.tag}]",
             )
 
         if check not in dgp:
