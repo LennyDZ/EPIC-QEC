@@ -22,7 +22,7 @@ class EmptyInputWarning(CompilerWarning):
     """Warning raised when empty input."""
 
     def __init__(self):
-        message = f"Received an empty list targets."
+        message = "Received an empty list of targets."
         super().__init__(message)
 
 
