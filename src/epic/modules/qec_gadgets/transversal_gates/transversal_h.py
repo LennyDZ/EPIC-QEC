@@ -9,7 +9,6 @@ from epic.core.qec_object import (
     StabilizerCode,
     Observable,
 )
-from epic.core.qec_object.observable import Observable
 from epic.core.qec_primitives.interfaces.apply_gate import ApplyGate
 from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
 from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
