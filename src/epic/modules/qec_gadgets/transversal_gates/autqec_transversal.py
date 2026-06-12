@@ -43,7 +43,7 @@ class AutQecTransversal(CodeGadget):
     ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
 
         if len(resolved_targets) != 1:
-            raise ValueError("MagmaAut gadget should only target one code.")
+            raise ValueError("AutQecTransversal gadget should only target one code.")
 
         code = resolved_targets[0]
         primitives: List[QECPrimitive] = []
