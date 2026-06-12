@@ -36,7 +36,7 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         detectors: List[Detector] = []
 
         if len(check_nodes) == 0:
-            return [], [], [], det_graph_port
+            return [], [], [], DetectorGraphPort()
 
         if len(check_nodes) > len(instruction.physical_ancilla_qubits):
             raise ValueError(f"""
