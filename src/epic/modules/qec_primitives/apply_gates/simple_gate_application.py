@@ -60,6 +60,8 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             )
         sanitized_targets = self._sanitize_target_nodes(instruction.target_nodes)
 
+        if not sanitized_targets:
+            return [], [], [], DetectorGraphPort()
         if len(instruction.gates) == 0:
             new_dg_port = DetectorGraphPort()
             for n in sanitized_targets:
