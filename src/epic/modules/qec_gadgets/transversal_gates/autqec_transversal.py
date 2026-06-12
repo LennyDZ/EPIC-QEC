@@ -84,7 +84,7 @@ class AutQecTransversal(CodeGadget):
             if self.swap_as_gates:
                 a = ApplyGate(
                     target=code.tanner_graph,
-                    target_nodes={i, j},  # type: ignore
+                    target_nodes={(i, j)},  # type: ignore[arg-type]
                     physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
                     physical_ancilla_qubits={},  # no ancillas needed for swaps
                     gates=["SWAP"],
