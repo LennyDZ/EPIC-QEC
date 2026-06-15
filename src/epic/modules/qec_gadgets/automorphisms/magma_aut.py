@@ -1,6 +1,5 @@
 from typing import Dict, List, Tuple
 from uuid import UUID
-from uuid import UUID
 
 from pydantic import Field
 
