@@ -1,6 +1,7 @@
 from typing import List, Set, Tuple, Union, cast
 from uuid import UUID
-
+import warnings
+from debug.warnings import EmptyInputWarning
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.data_structure import TannerNode, VariableNode
 from epic.core.qec_object import Detector, Measurement, DetectorGraphPort, NodeKnowledge
@@ -18,7 +19,8 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
     ) -> Set[Tuple[VariableNode, ...]]:
         """Normalize targets to a set of tuples and validate homogeneous tuple sizes."""
         if not target_nodes:
-            raise ValueError("ApplyGate instruction must specify target_nodes.")
+            warnings.warn(EmptyInputWarning())
+            return set()
 
         first = next(iter(target_nodes))
 
@@ -56,9 +58,10 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             raise ValueError(
                 "ApplyGate cannot compile measurement gates like M, MX, or MZ."
             )
-
         sanitized_targets = self._sanitize_target_nodes(instruction.target_nodes)
 
+        if not sanitized_targets:
+            return [], [], [], DetectorGraphPort()
         if len(instruction.gates) == 0:
             new_dg_port = DetectorGraphPort()
             for n in sanitized_targets:
@@ -78,15 +81,14 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             **instruction.physical_ancilla_qubits,
         }
 
-        if instruction.gates[-1] in gate_to_knowledge:
-            node_knowledge = gate_to_knowledge[instruction.gates[-1]]
-        else:
-            node_knowledge = NodeKnowledge.UNKNOWN
-
-        if node_knowledge != NodeKnowledge.UNKNOWN:
-            for t in sanitized_targets:
-                for node in t:
-                    new_dg_port[node] = QubitPortState(knowledge=node_knowledge)
+        for t in sanitized_targets:
+            for node in t:
+                if instruction.gates[-1] in gate_to_knowledge:
+                    new_dg_port[node] = QubitPortState(
+                        knowledge=gate_to_knowledge[instruction.gates[-1]]
+                    )
+                elif instruction.break_detector_graph:
+                    new_dg_port[node] = QubitPortState(knowledge=NodeKnowledge.UNKNOWN)
 
         for gate in instruction.gates:
             slots = " ".join(

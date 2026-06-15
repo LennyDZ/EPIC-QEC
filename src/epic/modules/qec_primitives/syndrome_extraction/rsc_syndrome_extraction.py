@@ -35,6 +35,9 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
 
+        if len(check_nodes) == 0:
+            return [], [], [], DetectorGraphPort()
+
         if len(check_nodes) > len(instruction.physical_ancilla_qubits):
             raise ValueError(f"""
                 Not enough physical ancilla qubits provided for syndrome extraction.

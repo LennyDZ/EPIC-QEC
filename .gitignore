@@ -12,3 +12,6 @@ wheels/
 
 *.DS_Store
 0_scratch/
+docs/example_notebooks/cnot_benchmark_result/visual/*
+
+*.npz

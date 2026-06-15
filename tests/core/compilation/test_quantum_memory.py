@@ -91,6 +91,26 @@ class TestQuantumMemory:
         with pytest.raises(KeyError):
             memory.get_physical_qubit(memory_nodes[0])
 
+    def test_swap_data_qubits_exchanges_physical_assignments(
+        self, memory_nodes: list[VariableNode]
+    ) -> None:
+        memory = QuantumMemory()
+        allocated = memory.allocate_qubits(memory_nodes[:2])
+
+        memory.swap_data_qubits(memory_nodes[0], memory_nodes[1])
+
+        assert memory.get_physical_qubit(memory_nodes[0]) == allocated[1]
+        assert memory.get_physical_qubit(memory_nodes[1]) == allocated[0]
+
+    def test_swap_data_qubits_raises_for_unallocated_qubit(
+        self, memory_nodes: list[VariableNode]
+    ) -> None:
+        memory = QuantumMemory()
+        memory.allocate_qubits([memory_nodes[0]])
+
+        with pytest.raises(RuntimeError, match="is not currently allocated"):
+            memory.swap_data_qubits(memory_nodes[0], memory_nodes[1])
+
     def test_free_qubits_raises_for_unallocated_qubit(
         self, memory_nodes: list[VariableNode]
     ) -> None:

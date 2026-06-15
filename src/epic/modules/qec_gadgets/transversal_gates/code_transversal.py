@@ -6,8 +6,6 @@ from typing import Dict, List, Set, Tuple
 from epic.core.data_structure import TannerGraph
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.language import CodeGadget
-from epic.core.qec_object import LogicalOperatorUpdate, Observable, StabilizerCode
-from epic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive, QECProcedure
 
 
 class TransversalCNOT(CodeGadget):
