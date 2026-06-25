@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epic"
-version = "0.1.2"
+version = "0.1.3"
 description = "Package for compiling quantum error correction procedures."
 readme = "README.md"
 license = "Apache-2.0"
