@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any, Generic, List, Mapping, Protocol, Set, Tuple, TypeVar
+from typing import Any, Generic, List, Mapping, Optional, Protocol, Set, Tuple, TypeVar
 from uuid import UUID, uuid4
 
 
@@ -13,6 +13,21 @@ from ...compilation.quantum_memory import PhysicalQubit, QuantumMemory
 from ...data_structure import TannerGraph
 from ...qec_object import Detector, Measurement
 
+T = TypeVar("T", bound="QECPrimitive", contravariant=True)
+
+
+class PrimitiveImplementation(Protocol, Generic[T]):
+    """Protocol implemented by backend-specific primitive compilers."""
+
+    def compile(
+        self,
+        instruction: T,
+        record: MeasurementRecordView,
+        det_graph_port: DetectorGraphPort,
+        parent_gadget_id: UUID,
+    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+        """Compile one primitive into circuit instructions, outputs, and port state."""
+        ...
 
 class QECPrimitive(ABC, BaseModel):
     """Abstract base class for primitives compiled against a Tanner graph."""
@@ -25,6 +40,7 @@ class QECPrimitive(ABC, BaseModel):
         default_factory=dict
     )
 
+    implementation: Optional[Any] = Field(default=None, exclude=True)
     tag: str = ""
     distance: int = 0
 
@@ -60,21 +76,10 @@ class QECPrimitive(ABC, BaseModel):
 
     def get_implementation_class(self, registry) -> type:
         """Look up the configured implementation class for this primitive type."""
+        if self.implementation is not None:
+            print(f"Using explicitly set implementation: {type(self.implementation)}")
+            return type(self.implementation)
         return registry.get(type(self))
 
 
-T = TypeVar("T", bound="QECPrimitive", contravariant=True)
 
-
-class PrimitiveImplementation(Protocol, Generic[T]):
-    """Protocol implemented by backend-specific primitive compilers."""
-
-    def compile(
-        self,
-        instruction: T,
-        record: MeasurementRecordView,
-        det_graph_port: DetectorGraphPort,
-        parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
-        """Compile one primitive into circuit instructions, outputs, and port state."""
-        ...

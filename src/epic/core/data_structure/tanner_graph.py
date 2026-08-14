@@ -3,6 +3,7 @@ from functools import cached_property
 from typing import Dict, List, Set, Tuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+import igraph as ig
 from scipy.sparse import csr_matrix
 
 from .tanner_node import TannerNode, VariableNode, CheckNode
@@ -205,6 +206,33 @@ class TannerGraph(BaseModel):
             var_node_list,
             check_node_list,
         )
+
+    # @cached_property
+    # def canonical_index(self) -> Tuple[str, Dict[TannerNode, TannerNode]]:
+    #     """Returns a canonical string representation of the Tanner graph and a mapping from original nodes to canonical nodes.
+    #     O(#Check) (+ O(E) if check index not cached)."""
+    #     # Get the parity-check matrix and node lists
+
+    #     H, var_nodes, check_nodes = self.parity_check_matrix
+    #     m, n = H.shape
+
+    #     rows, cols = H.nonzero()
+
+    #     edges = [
+    #         (int(i), m + int(j))
+    #         for i, j in zip(rows, cols)
+    #     ]
+
+    #     g = ig.Graph(
+    #         n=m+n,
+    #         edges=edges,
+    #         directed=False
+    #     )
+
+    #     # Get the canonical form of the graph
+    #     canonical_g = g.canonical_permutation()
+
+    #     return canonical_str, node_mapping
 
     @staticmethod
     def from_pcm(Hx: csr_matrix, Hz: csr_matrix, code_name: str = "") -> "TannerGraph":

@@ -272,8 +272,8 @@ class QECCompiler:
             ):
                 if show_progress:
                     print(
-                        f"[{gadget_index}/{total_gadgets}] Primitive "
-                        f"{primitive_index}/{total_primitives}: "
+                        "           "
+                        f"Primitive {primitive_index}/{total_primitives}: "
                         f"{self._describe_primitive(p_op)}"
                     )
                 primitive_start = perf_counter()
@@ -300,7 +300,7 @@ class QECCompiler:
                         perf_counter() - primitive_start
                     )
                     print(
-                        f"[{gadget_index}/{total_gadgets}] Primitive "
+                        "           "
                         f"{primitive_index}/{total_primitives} complete in "
                         f"{primitive_elapsed}"
                     )

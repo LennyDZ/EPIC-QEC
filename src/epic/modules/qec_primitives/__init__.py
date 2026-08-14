@@ -2,6 +2,7 @@ from . import apply_gates, readouts, syndrome_extraction
 from .apply_gates import SimpleGateApplication
 from .readouts import NaiveReadout
 from .syndrome_extraction import (
+    LRCircuit,
     RSCSyndromeExtraction,
     SimpleSyndromeExtraction,
     ZXColoringExtraction,
@@ -9,6 +10,7 @@ from .syndrome_extraction import (
 
 __all__ = [
     "NaiveReadout",
+    "LRCircuit",
     "RSCSyndromeExtraction",
     "SimpleGateApplication",
     "SimpleSyndromeExtraction",

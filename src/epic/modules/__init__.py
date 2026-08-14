@@ -7,6 +7,7 @@ from .qec_gadgets import (
     ReadoutCode,
 )
 from .qec_primitives import (
+    LRCircuit,
     NaiveReadout,
     RSCSyndromeExtraction,
     SimpleGateApplication,
@@ -28,6 +29,7 @@ __all__ = [
     "NaiveLogicalMeasurement",
     "NaiveReadout",
     "NullCode",
+    "LRCircuit",
     "RSCSurgery",
     "RSCSyndromeExtraction",
     "ReadoutCode",

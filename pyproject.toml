@@ -14,6 +14,7 @@ requires-python = ">=3.12"
 dependencies = [
 	"autqec>=1.0.1",
 	"ldpc>=2.4.1",
+	"lr-circuits",
 	"numpy>=1.26.4",
 	"pydantic>=2.13.3",
 	"pymatching>=2.3.1",
@@ -71,3 +72,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["src", "."]
 addopts = "-ra"
+
+[tool.uv.sources]
+lr-circuits = { git = "https://github.com/LennyDZ/LR-circuits.git" }
