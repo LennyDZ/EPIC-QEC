@@ -106,7 +106,7 @@ class RSCSurgery(LogicGadget):
         # Primitive 2: do d rounds of syndrome measurement on the merged system.
         merged_syndrome = ExtractSyndrome(
             target=merged_system,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 merged_system.variable_nodes
             )
             | {k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},
@@ -132,7 +132,7 @@ class RSCSurgery(LogicGadget):
         split_syndrome = [
             ExtractSyndrome(
                 target=initial_code,
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     initial_code.variable_nodes
                 ),
                 physical_ancilla_qubits=ancilla_qubits_to_node,

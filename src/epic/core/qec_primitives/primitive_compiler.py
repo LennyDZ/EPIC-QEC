@@ -5,11 +5,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
-from ..data_structure.tanner_node import TannerNode
-from ..qec_object.detector import DetectorGraphPort, QubitPortState
 from ..compilation.measurement_record import MeasurementRecordView
 from ..compilation.quantum_memory import QuantumMemory
-from ..qec_object import Detector, Measurement
+from ..data_structure.quantum_program import QuantumProgram
+from ..data_structure.tanner_node import TannerNode
+from ..qec_object.detector import Detector, DetectorGraphPort, QubitPortState
+from ..qec_object.measurement import Measurement
 from .interfaces import QECPrimitive
 
 
@@ -72,7 +73,7 @@ class PrimitiveCompiler(BaseModel):
         record: MeasurementRecordView,
         det_graph_port: MappingProxyType[TannerNode, QubitPortState],
         parent_gadget_id: UUID,
-    ) -> tuple[list[str], list[Measurement], list[Detector], DetectorGraphPort]:
+    ) -> tuple[QuantumProgram, list[Measurement], list[Detector], DetectorGraphPort]:
         """Compile a primitive by dispatching to its configured implementation class."""
 
         impl_cls = primitive_instruction.get_implementation_class(self._registry)
@@ -87,4 +88,4 @@ class PrimitiveCompiler(BaseModel):
         )
 
         instructions, measurements, detectors, detector_stitch = result
-        return list(instructions), list(measurements), list(detectors), detector_stitch
+        return instructions, list(measurements), list(detectors), detector_stitch

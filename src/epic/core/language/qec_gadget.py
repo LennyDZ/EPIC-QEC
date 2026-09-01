@@ -1,20 +1,22 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 
-from ..qec_object import (
-    LogicalOperator,
-    LogicalOperatorUpdate,
-    Observable,
-    StabilizerCode,
-)
-from ..qec_primitives.interfaces import QECPrimitive
+from ..compilation.measurement_record import MeasurementRecordView
+from ..compilation.quantum_memory import QuantumMemory
+from ..qec_object.logical_operator import LogicalOperatorUpdate
+from ..qec_object.logical_qubit import LogicalQubit
+from ..qec_object.observable import Observable
+from ..qec_object.stabilizer_code import StabilizerCode
+
+if TYPE_CHECKING:
+    from ..qec_primitives.interfaces.qec_primitive import QECPrimitive
 
 
 class QECGadget(ABC, BaseModel):
@@ -57,7 +59,7 @@ class LogicGadget(QECGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         """Compile this gadget into a sequence of primitive code instructions, along with any logical
         operator updates and observables produced by the gadget."""
         pass
@@ -76,7 +78,7 @@ class CodeGadget(QECGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         """Compile this gadget into a sequence of primitive code instructions, along with any logical operator updates and observables produced by the gadget."""
         pass
 

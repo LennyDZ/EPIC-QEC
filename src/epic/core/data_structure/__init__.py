@@ -5,6 +5,7 @@ from .tanner_node import CheckNode, TannerNode, VariableNode
 from .tanner_graph import TannerEdge, TannerGraph
 from .graph_algorithm import GraphAlgorithm
 from .physical_qubit import PhysicalQubit
+from .quantum_program import ProgramQubit, QProgOperation, QuantumProgram
 
 __all__ = [
     "TannerNode",
@@ -16,4 +17,7 @@ __all__ = [
     "PauliEigenState",
     "PauliString",
     "PhysicalQubit",
+    "ProgramQubit",
+    "QProgOperation",
+    "QuantumProgram",
 ]

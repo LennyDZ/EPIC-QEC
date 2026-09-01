@@ -1,14 +1,19 @@
-"""Compilation-time context and registries for QEC programs."""
+from typing import Dict, List, Tuple
+from epic.core.data_structure.quantum_program import QuantumProgram
 
 from types import MappingProxyType
 from typing import Any, Dict, List, Set, Tuple, TypeVar, overload
 from uuid import UUID
 import warnings
 
+from epic.core.data_structure.quantum_program import QProgOperation
+from epic.core.visualization.quantum_program_vis import draw_quantum_program
+
+
 from .compiled_experiment import CompiledExperiment
 from .measurement_record import MeasurementRecord
 from .quantum_memory import QuantumMemory
-from ..data_structure.tanner_node import TannerNode
+from ..data_structure import TannerNode, QuantumProgram
 from ..qec_object import (
     LogicalOperator,
     LogicalQubit,
@@ -44,7 +49,7 @@ class CompilationContext:
         self._operator_to_qubit: Dict[UUID, UUID] = {}
         self._qubit_to_code: Dict[UUID, UUID] = {}
         self._detector_port: DetectorGraphPort = DetectorGraphPort()
-        self._circuit_instructions = []
+        self._output_program = QuantumProgram()
         self._detectors = []
 
         self.quantum_memory = QuantumMemory(size_limit=memory_size)
@@ -84,7 +89,7 @@ class CompilationContext:
         """Build a compiled experiment from the recorded instructions and outputs."""
         return CompiledExperiment(
             record=self.measurement_record,
-            circuit_instructions=self._circuit_instructions,
+            program=self._output_program,
             detectors=self._detectors,
             observables=[self._uuid_memory[obs_id] for obs_id in self._observables],
         )
@@ -136,12 +141,12 @@ class CompilationContext:
         else:
             self._detectors.append(detector)
 
-    def add_circuit_instruction(self, instruction: str | List[str]):
+    def add_circuit_operation(self, instruction: QProgOperation | List[QProgOperation] | QuantumProgram):
         """Append one circuit instruction or a list of instructions."""
         if isinstance(instruction, list):
-            self._circuit_instructions.extend(instruction)
+            self._output_program.add_operations(instruction)
         else:
-            self._circuit_instructions.append(instruction)
+            self._output_program.add_operation(instruction)
 
     def get_observable_by_id(self, obs_id: UUID) -> Observable:
         """Return an observable by UUID."""
@@ -179,9 +184,11 @@ class CompilationContext:
             for op in [qubit.logical_x, qubit.logical_z]:
                 self._uuid_memory[op.id] = op
                 self._operator_to_qubit[op.id] = qubit.id
-        self.quantum_memory.allocate_qubits(
-            qubits=list(code_copy.tanner_graph.variable_nodes)
+        physical_qubits = self.quantum_memory.allocate_qubits_to_node(
+            nodes=list(code_copy.tanner_graph.variable_nodes)
         )
+        return physical_qubits
+
 
     def unregister_code(self, code_varname: str):
         """Remove a registered code and all objects derived from it."""
