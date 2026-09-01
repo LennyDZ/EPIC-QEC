@@ -3,7 +3,7 @@ from uuid import UUID
 import warnings
 from debug.warnings import EmptyInputWarning
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure import TannerNode, VariableNode
+from epic.core.data_structure import TannerNode, VariableNode, QuantumProgram, QProgOperation
 from epic.core.qec_object import Detector, Measurement, DetectorGraphPort, NodeKnowledge
 
 from epic.core.qec_object.detector import QubitPortState
@@ -52,7 +52,7 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
 
         if any(g in {"M", "MZ", "MX"} for g in instruction.gates):
             raise ValueError(
@@ -61,13 +61,13 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
         sanitized_targets = self._sanitize_target_nodes(instruction.target_nodes)
 
         if not sanitized_targets:
-            return [], [], [], DetectorGraphPort()
+            return QuantumProgram(), [], [], DetectorGraphPort()
         if len(instruction.gates) == 0:
             new_dg_port = DetectorGraphPort()
             for n in sanitized_targets:
                 for node in n:
                     new_dg_port[node] = QubitPortState(knowledge=NodeKnowledge.UNKNOWN)
-            return [], [], [], new_dg_port
+            return QuantumProgram(), [], [], new_dg_port
         stim_instructions: List[str] = []
         new_dg_port = DetectorGraphPort()
 
@@ -81,6 +81,12 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
             **instruction.physical_ancilla_qubits,
         }
 
+        program = QuantumProgram(name=f"simple_gate_application_{instruction.tag}")
+        qubits = dict()
+        for t in sanitized_targets:
+            for node in t:
+                program.add_qubit(mem[node])
+
         for t in sanitized_targets:
             for node in t:
                 if instruction.gates[-1] in gate_to_knowledge:
@@ -91,9 +97,12 @@ class SimpleGateApplication(PrimitiveImplementation[ApplyGate]):
                     new_dg_port[node] = QubitPortState(knowledge=NodeKnowledge.UNKNOWN)
 
         for gate in instruction.gates:
-            slots = " ".join(
-                str(mem[node].integer_index) for t in sanitized_targets for node in t
+            program.add_operation(
+                QProgOperation(
+                    name=gate,
+                    length=1,
+                    targets=[mem[node] for t in sanitized_targets for node in t],
+                )
             )
-            stim_instructions.append(f"{gate} {slots}")
 
-        return stim_instructions, [], [], new_dg_port
+        return program, [], [], new_dg_port

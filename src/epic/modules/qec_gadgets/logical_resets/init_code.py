@@ -32,7 +32,7 @@ class InitCode(CodeGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         gates = []
         match self.initial_state:
             case PauliEigenState.X_plus:
@@ -50,19 +50,26 @@ class InitCode(CodeGadget):
         primitives: List[QECPrimitive] = []
         # Lock 1 ancilla per checks:
         ancilla_locked: Dict[UUID, Dict[TannerNode, PhysicalQubit]] = defaultdict(dict)
+
+        qubits_used: List[PhysicalQubit] = []
+
         for code in resolved_targets:
-            anc = quantum_memory.lock_ancilla_qubits(
+            anc = quantum_memory.get_ancilla_qubits(
                 n=len(code.tanner_graph.check_nodes), requestor_id=self.id
             )
+            qubits_used.extend(anc)
             ancilla_locked[code.id] = {
                 n: q for n, q in zip(code.tanner_graph.check_nodes, anc)
             }
 
         for code in resolved_targets:
+            qubits_used.extend(
+                quantum_memory.node_allocation_snapshot(code.tanner_graph.variable_nodes).values()
+            )
             primitives.append(
                 ApplyGate(
                     target=code.tanner_graph,
-                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    physical_data_qubits=quantum_memory.node_allocation_snapshot(
                         code.tanner_graph.variable_nodes
                     ),
                     physical_ancilla_qubits=ancilla_locked[code.id],
@@ -73,7 +80,7 @@ class InitCode(CodeGadget):
             primitives.append(
                 ExtractSyndrome(
                     target=code.tanner_graph,
-                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    physical_data_qubits=quantum_memory.node_allocation_snapshot(
                         code.tanner_graph.variable_nodes
                     ),
                     physical_ancilla_qubits=ancilla_locked[code.id],
@@ -82,9 +89,4 @@ class InitCode(CodeGadget):
                 )
             )
 
-        for code, anc_checks_map in ancilla_locked.items():
-            quantum_memory.unlock_ancilla_qubits(
-                list(anc_checks_map.values()), owner_id=self.id
-            )
-
-        return {}, [], primitives
+        return {}, [], primitives, qubits_used

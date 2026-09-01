@@ -284,12 +284,19 @@ class RSCSurgery(PPM):
 
         # 4
         primitives = []
+        qubits_used = []
         lop_updates = {}
 
         ancilla_qubits_to_node = dict()
-        ancilla_qubits_locked = quantum_memory.lock_ancilla_qubits(
+        ancilla_qubits_locked = quantum_memory.get_ancilla_qubits(
             n=len(merged_system.check_nodes) + len(ancilla_system.variable_nodes),
             requestor_id=self.id,
+        )
+        qubits_used.extend(ancilla_qubits_locked)
+        qubits_used.extend(
+            quantum_memory.node_allocation_snapshot(
+                merged_system.variable_nodes
+            ).values()
         )
         for node, phys_qubit in zip(
             merged_system.check_nodes | ancilla_system.variable_nodes,
@@ -308,7 +315,7 @@ class RSCSurgery(PPM):
         )
         merged_syndrome = ExtractSyndrome(
             target=merged_system,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 merged_system.variable_nodes
             )
             | {k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},  # type: ignore
@@ -331,7 +338,7 @@ class RSCSurgery(PPM):
         split_syndrome = [
             ExtractSyndrome(
                 target=initial_code,
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     initial_code.variable_nodes
                 ),
                 physical_ancilla_qubits=ancilla_qubits_to_node,
@@ -386,8 +393,4 @@ class RSCSurgery(PPM):
             )
         ]
 
-        quantum_memory.unlock_ancilla_qubits(
-            qubits=list(ancilla_qubits_locked), owner_id=self.id
-        )
-
-        return lop_updates, observable, primitives
+        return lop_updates, observable, primitives, qubits_used

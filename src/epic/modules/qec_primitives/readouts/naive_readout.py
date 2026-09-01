@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure import PauliChar
+from epic.core.data_structure import PauliChar, QProgOperation, QuantumProgram
 from epic.core.qec_object import (
     Detector,
     Measurement,
@@ -22,8 +22,11 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
-        instructions: List[str] = []
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
+        program = QuantumProgram(name=f"naive_readout_{instruction.tag}")
+        for n in instruction.target.variable_nodes:
+            program.add_qubit(instruction.physical_data_qubits[n])
+
         new_measurements: Dict[UUID, Measurement] = {}
         new_measurement_ordered = []
 
@@ -33,9 +36,7 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
             else NodeKnowledge.MZ
         )
 
-        nm = []
         for node in instruction.target.variable_nodes:
-            nm.append(str(instruction.physical_data_qubits[node].integer_index))
             new_m = Measurement(
                 node_id=node.id,
                 parent_gadget_id=parent_gadget_id,
@@ -45,8 +46,14 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
             new_measurements[node.id] = new_m
             new_measurement_ordered.append(new_m)
 
-        instructions.append(f"M{instruction.readout_basis.value} {' '.join(nm)}")
-
+            program.add_operation(
+                QProgOperation(
+                    name=f"M{instruction.readout_basis.value}",
+                    length=1,
+                    targets=[instruction.physical_data_qubits[node]],
+                    measurement_id=new_m.id,
+                )
+            )
         detectors: List[Detector] = []
         checks_stable_with_measured_vars = set()
 
@@ -111,4 +118,4 @@ class NaiveReadout(PrimitiveImplementation[Readout]):
         for node in instruction.target.variable_nodes:
             new_dg_port[node] = QubitPortState(knowledge=new_port_state)
 
-        return instructions, new_measurement_ordered, detectors, new_dg_port
+        return program, new_measurement_ordered, detectors, new_dg_port

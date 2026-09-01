@@ -7,7 +7,7 @@ from epic.core.compilation.measurement_record import (
     MeasurementRecordView,
 )
 
-from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, CheckNode
+from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, CheckNode, QuantumProgram, QProgOperation
 from epic.core.qec_object import (
     Detector,
     Measurement,
@@ -27,11 +27,11 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
 
         check_nodes = instruction.target.check_nodes
-        reset_ancilla_instructions: List[str] = []
-        stim_instructions: List[str] = []
+        
+        program = QuantumProgram(name=f"Simple_syndrome_extraction_{instruction.tag}")
         measurements: Dict[TannerNode, List[Measurement]] = {}
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
@@ -49,29 +49,38 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         data_qubits = instruction.physical_data_qubits
 
-        # RESET ANCILLA
+        program.add_qubits(list(checks_qubits.values()) + list(data_qubits.values()))
 
+        # RESET ANCILLA
+        reset_ancilla_instructions: List[QProgOperation] = []
         if instruction.ancilla_reset_state == PauliEigenState.Z_plus:
-            reset_ancilla_instructions.append(
-                f"RZ {" ".join([str(checks_qubits[check].integer_index) for check in check_nodes])}"
-            )
+            for check in check_nodes:
+                reset_ancilla_instructions.append(
+                    QProgOperation(
+                        name="RZ",
+                        length=1,
+                        targets=[checks_qubits[check]],
+                    )
+                )
         elif instruction.ancilla_reset_state == PauliEigenState.X_plus:
-            reset_ancilla_instructions.append(
-                f"RX {" ".join([str(checks_qubits[check].integer_index) for check in check_nodes])}"
-            )
+            for check in check_nodes:
+                reset_ancilla_instructions.append(
+                    QProgOperation(
+                        name="RX",
+                        length=1,
+                        targets=[checks_qubits[check]],
+                    )
+                )
         else:
             raise ValueError(
                 f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
             )
 
-        stim_instructions.extend(reset_ancilla_instructions)
-        single_round_instructions: List[str] = []
+        program.add_operations(reset_ancilla_instructions)
+        single_round_instructions: List[QProgOperation] = []
         node_measured = []
         # SYNDROME EXTRACTION CIRCUIT
         for check in check_nodes:
-            single_round_instructions.append(
-                f"# Stab: {check.tag}, type: {check.check_type}"
-            )  # for clarity in the generated stim code
             if check.check_type:
                 check_circuit = self._extract_check_circuit(
                     checks_qubits[check].integer_index,
@@ -83,17 +92,11 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 )
                 single_round_instructions.extend(check_circuit)
                 node_measured.append(check)
-        # R round of circuit extraction into MRZ
-        stim_instructions.append(f"REPEAT {instruction.rounds} {{")
-        stim_instructions.extend(
-            [f"    {instr}" for instr in single_round_instructions]
-        )
-        stim_instructions.append(
-            f"    MRZ {" ".join(str(checks_qubits[n].integer_index) for n in node_measured)}"
-        )
-        stim_instructions.append("}")
+            
 
         for r in range(instruction.rounds):
+            instr = single_round_instructions.copy()
+            
             for m in node_measured:
                 measurement = Measurement(
                     node_id=m.id,
@@ -101,8 +104,18 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     parent_primitive_id=instruction.id,
                     tag=f"synd_{m.tag}_r{r}",
                 )
+                instr.append(
+                    QProgOperation(
+                        name="MRZ",
+                        length=1,
+                        targets=[checks_qubits[m]],
+                        measurement_id=measurement.id,
+                    )
+                )
                 measurements.setdefault(m, []).append(measurement)
                 measurements_ordered.append(measurement)
+            program.add_operations(instr)
+            
 
         for check in check_nodes:
             # Initial round detector
@@ -133,31 +146,73 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 connected_nodes=instruction.target.get_neighbourhood(node),
             )
 
-        return stim_instructions, measurements_ordered, detectors, new_graph_port
+        return program, measurements_ordered, detectors, new_graph_port
 
     @staticmethod
     def _extract_check_circuit(
         check: int, neighbours: List[int], check_type: PauliChar
-    ) -> List[str]:
-        stim_instructions: List[str] = []
+    ) -> List[QProgOperation]:
+        instructions: List[QProgOperation] = []
         match (check_type):
             case PauliChar.Z:
                 for dq in neighbours:
-                    stim_instructions.append(f"CX {dq} {check}")
+                    instructions.append(
+                        QProgOperation(
+                            name="CX",
+                            length=1,
+                            targets=[dq, check],
+                        )
+                    )
             case PauliChar.X:
-                stim_instructions.append(f"H {check}")
+                instructions.append(
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[check],
+                    )
+                )
                 for dq in neighbours:
-                    stim_instructions.append(f"CX {check} {dq}")
-                stim_instructions.append(f"H {check}")
+                    instructions.append(
+                        QProgOperation(
+                            name="CX",
+                            length=1,
+                            targets=[check, dq],
+                        )
+                    )
+                instructions.append(
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[check],
+                    )
+                )
             case PauliChar.Y:
-                stim_instructions.append(f"H {check}")
+                instructions.append(
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[check],
+                    )
+                )
                 for dq in neighbours:
-                    stim_instructions.append(f"CY {check}, {dq}")
-                stim_instructions.append(f"H {check}")
+                    instructions.append(
+                        QProgOperation(
+                            name="CY",
+                            length=1,
+                            targets=[check, dq],
+                        )
+                    )
+                instructions.append(
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[check],
+                    )
+                )
             case _:
                 raise ValueError(f"Non-CSS stabiliser type not supported")
 
-        return stim_instructions
+        return instructions
 
     @staticmethod
     def _detector_round_zero(

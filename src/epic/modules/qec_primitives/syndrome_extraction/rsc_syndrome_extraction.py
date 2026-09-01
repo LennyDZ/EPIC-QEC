@@ -1,11 +1,16 @@
 from typing import Dict, List, Tuple
 from uuid import UUID
 
-
 from epic.core.compilation.measurement_record import (
     MeasurementRecordView,
 )
-from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode
+from epic.core.data_structure import (
+    PauliChar,
+    PauliEigenState,
+    TannerNode,
+    QuantumProgram,
+    QProgOperation,
+)
 from epic.core.qec_object import (
     Detector,
     Measurement,
@@ -14,6 +19,7 @@ from epic.core.qec_object import (
     NodeKnowledge,
 )
 from epic.core.qec_primitives.interfaces import ExtractSyndrome, PrimitiveImplementation
+from epic.core.visualization.quantum_program_vis import draw_quantum_program
 
 
 class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
@@ -25,12 +31,11 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
 
         check_nodes = instruction.target.check_nodes
-        reset_ancilla_instructions: List[str] = []
-        stim_instructions: List[str] = []
-        stim_instructions.append(f"# RSC syndrome extraction {instruction.tag}")
+        program = QuantumProgram(name=f"RSC_syndrome_extraction_{instruction.tag}")
+
         measurements: Dict[TannerNode, List[Measurement]] = {}
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
@@ -52,26 +57,43 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         node_to_qubit = {**checks_qubits, **data_qubits}
 
+        for q in node_to_qubit.values():
+            program.add_qubit(q)
+        tick_on_all_qb = QProgOperation(
+            name="tick", length=0, targets=node_to_qubit.values()
+        )
+
         # RESET ANCILLA
 
+        reset_ancilla_instructions: List[QProgOperation] = []
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
-                reset_ancilla_instructions.append(
-                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
-                )
+                for check in check_nodes:
+                    reset_ancilla_instructions.append(
+                        QProgOperation(
+                            name="RZ",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                    )
             case PauliEigenState.X_plus:
-                reset_ancilla_instructions.append(
-                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
-                )
+                for check in check_nodes:
+                    reset_ancilla_instructions.append(
+                        QProgOperation(
+                            name="RX",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                    )
             case _:
                 raise ValueError(
                     f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
                 )
 
-        stim_instructions.extend(reset_ancilla_instructions)
+        program.add_operations(reset_ancilla_instructions)
 
         # SYNDROME EXTRACTION CIRCUIT
-        single_round_instructions: List[str] = []
+        single_round_instructions: List[QProgOperation] = []
         node_measured = []
         x_checks = []
         t1 = []
@@ -126,28 +148,39 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     )
             node_measured.append(check)
 
-        single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
-        )
-        single_round_instructions.append("TICK")
-        for t in [t1, t2, t3, t4]:
+        single_round_instructions.append(tick_on_all_qb)
+        for xc in x_checks:
             single_round_instructions.append(
-                f"CX {" ".join(f"{str(node_to_qubit[con].integer_index)} {str(node_to_qubit[tar].integer_index)}" for con, tar in t)}"
+                QProgOperation(
+                    name="H",
+                    length=1,
+                    targets={node_to_qubit[xc]},
+                )
             )
-            single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
-        )
-        single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in node_measured)}"
-        )
+        single_round_instructions.append(tick_on_all_qb)
+        for t in [t1, t2, t3, t4]:
+            for con, tar in t:
+                single_round_instructions.append(
+                    QProgOperation(
+                        name="CX",
+                        length=1,
+                        targets=[node_to_qubit[con], node_to_qubit[tar]],
+                    )
+                )
+            single_round_instructions.append(tick_on_all_qb)
+        for xc in x_checks:
+            single_round_instructions.append(
+                QProgOperation(
+                    name="H",
+                    length=1,
+                    targets=[node_to_qubit[xc]],
+                )
+            )
+        single_round_instructions.append(tick_on_all_qb)
 
-        stim_instructions.append(f"REPEAT {instruction.rounds} {{")
-        stim_instructions.extend([f"   {instr}" for instr in single_round_instructions])
-        stim_instructions.append("}")
         for r in range(instruction.rounds):
+            instr = single_round_instructions.copy()
+
             for m in node_measured:
                 measurement = Measurement(
                     node_id=m.id,
@@ -155,8 +188,18 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     parent_primitive_id=instruction.id,
                     tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
                 )
+                instr.append(
+                    QProgOperation(
+                        name="MRZ",
+                        length=1,
+                        targets=[node_to_qubit[m]],
+                        measurement_id=measurement.id,
+                    )
+                )
+
                 measurements.setdefault(m, []).append(measurement)
                 measurements_ordered.append(measurement)
+            program.add_operations(instr)
 
         for check in check_nodes:
             # Initial round detector
@@ -188,4 +231,4 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 connected_nodes=instruction.target.get_neighbourhood(node),
             )
 
-        return stim_instructions, measurements_ordered, detectors, new_graph_port
+        return program, measurements_ordered, detectors, new_graph_port

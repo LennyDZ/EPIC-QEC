@@ -1,6 +1,6 @@
 from typing import Dict, List, Tuple
 from uuid import UUID
-
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure.pauli import PauliChar
@@ -25,19 +25,25 @@ class ReadoutCode(CodeGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         primitives: List[QECPrimitive] = []
         observables: List[Observable] = []
+        used_qubits: List[PhysicalQubit] = []
 
         for code in resolved_targets:
             ro = Readout(
                 target=code.tanner_graph,
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     code.tanner_graph.variable_nodes
                 ),
                 physical_ancilla_qubits={},  # readout look only at data qubits
                 readout_basis=self.readout_basis,
                 tag=f"readout_{self.tag}",
+            )
+            used_qubits.extend(
+                quantum_memory.node_allocation_snapshot(
+                    code.tanner_graph.variable_nodes
+                ).values()
             )
             primitives.append(ro)
             observables.extend(
@@ -67,4 +73,4 @@ class ReadoutCode(CodeGadget):
                     for lq in code.logical_qubits
                 ]
             )
-        return {}, observables, primitives
+        return {}, observables, primitives, used_qubits

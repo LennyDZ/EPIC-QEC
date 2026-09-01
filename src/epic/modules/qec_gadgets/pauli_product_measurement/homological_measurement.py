@@ -8,6 +8,7 @@ import xgi
 import numpy as np
 import ldpc.mod2 as m2a
 
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer as TGV
 from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure import (
@@ -212,10 +213,7 @@ class HomologicalMeasurement(PPM):
             d0_max_row_w = max(np.sum(delta0, axis=1))
             if prod_2.any():
                 cand = (prod_1 + prod_2) % 2
-                if (
-                    max(np.sum(cand, axis=1)) < d0_max_row_w
-                    and _is_in_kernel(cand)
-                ):
+                if max(np.sum(cand, axis=1)) < d0_max_row_w and _is_in_kernel(cand):
                     delta0 = cand
             if max(np.sum(prod_1, axis=1)) < d0_max_row_w:
                 if _is_in_kernel(prod_1):
@@ -473,6 +471,7 @@ class HomologicalMeasurement(PPM):
 
         codes = [code for _, code in resolved_targets]
         logical_qubits = [lq for lq, _ in resolved_targets]
+        qubits_used: List[PhysicalQubit] = []
 
         if not all(isinstance(c, CSSCode) for c in codes):
             raise ValueError("All target codes must be CSS codes.")
@@ -507,18 +506,20 @@ class HomologicalMeasurement(PPM):
             reduce(or_, [code.tanner_graph for code in codes]), connecting_edges
         )
 
-        qubits_for_ancilla_system = quantum_memory.lock_ancilla_qubits(
-            len(ancilla_system.variable_nodes), self.id
+        qubits_for_ancilla_system = quantum_memory.get_ancilla_qubits(
+            n=len(ancilla_system.variable_nodes), requestor_id=self.id
         )
+        qubits_used.extend(qubits_for_ancilla_system)
 
         ancilla_sys_data_qubits = {
             v: q
             for v, q in zip(ancilla_system.variable_nodes, qubits_for_ancilla_system)
         }
 
-        qubits_for_merged_system_checks = quantum_memory.lock_ancilla_qubits(
-            len(cone_system.check_nodes), self.id
+        qubits_for_merged_system_checks = quantum_memory.get_ancilla_qubits(
+            n=len(cone_system.check_nodes), requestor_id=self.id
         )
+        qubits_used.extend(qubits_for_merged_system_checks)
 
         checks_qubits = {
             c: q
@@ -559,7 +560,7 @@ class HomologicalMeasurement(PPM):
                 },
             ),  # type: ignore
             rounds=1,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 cone_system.variable_nodes  # type: ignore
             )
             | ancilla_sys_data_qubits,
@@ -570,12 +571,16 @@ class HomologicalMeasurement(PPM):
         cone_syndrome = ExtractSyndrome(
             target=cone_system,
             rounds=objective_distance,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 cone_system.variable_nodes  # type: ignore
             )
             | ancilla_sys_data_qubits,
             physical_ancilla_qubits=checks_qubits,  # type: ignore
             tag=f"hm_syndrome_{self.tag}",
+        )
+
+        qubits_used.extend(
+            quantum_memory.node_allocation_snapshot(cone_system.variable_nodes).values()
         )
 
         ancilla_readout = Readout(
@@ -591,7 +596,7 @@ class HomologicalMeasurement(PPM):
                 target=code.tanner_graph,
                 rounds=objective_distance,
                 tag=f"hm_split_syndrome_{code.name}",
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     code.tanner_graph.variable_nodes  # type: ignore
                 ),
                 physical_ancilla_qubits=checks_qubits,  # type: ignore
@@ -637,4 +642,9 @@ class HomologicalMeasurement(PPM):
             },
         )
 
-        return {anticommuting_lop[0].id: lop_update}, observable, primitives
+        return (
+            {anticommuting_lop[0].id: lop_update},
+            observable,
+            primitives,
+            qubits_used,
+        )
