@@ -1,22 +1,18 @@
 from pathlib import Path
-from time import perf_counter
-from typing import Any, Dict, List, Mapping, Sequence, Tuple, TypeVar
+from typing import Any, Dict, List
 from uuid import UUID
 import warnings
 
 from debug.warnings import CodeBelowDistanceWarning
-from epic.core.data_structure.physical_qubit import PhysicalQubit
-from epic.core.data_structure.quantum_program import QuantumProgram
-from epic.core.qec_object.logical_operator import LogicalOperatorUpdate
-from epic.core.qec_primitives import PrimitiveCompiler
+
+from ..qec_object import LogicalQubit, StabilizerCode, Observable, LogicalOperatorUpdate
+from ..language import QECGadget, AllocCode, CodeGadget, FreeCode, LogicGadget
+from ..data_structure import PhysicalQubit, QuantumProgram
+from ..qec_primitives import PrimitiveCompiler
 
 from .compiled_experiment import CompiledExperiment
 from .compilation_context import CompilationContext
-from ..qec_object import LogicalQubit, StabilizerCode, Observable
-from ..language import QECGadget, AllocCode, CodeGadget, FreeCode, LogicGadget
-from ..qec_primitives.interfaces import QECPrimitive
 
-from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer
 
 
 class QECCompiler:

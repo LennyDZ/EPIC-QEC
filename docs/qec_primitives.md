@@ -11,7 +11,7 @@ All `QECPrimitive` instructions share a common structure with:
 There are four instructions defined by EPIC-QEC:
 - `ApplyGate(target_nodes, gates)`: simply applies the given gates to the given nodes of the Tanner graph.
 - `ExtractSyndrome(rounds, ancilla_reset_state)`: performs `rounds` rounds of measurement of the checks, or syndromes, in the Tanner graph. One can also specify the state in which the ancilla used to measure the checks are reset between rounds.
-- `Readout(basis)`: Measure and reset all nodes in the given Tanner graph.
+- `Readout(readout_basis)`: Measure all variable nodes in the given Tanner graph in the requested Pauli basis.
 - `CustomPrimitive(implementation_class)`: allows one to directly call a specific custom implementation class, bypassing the compilation setting.
 
 It is then possible to build specific implementations. For example, the syndrome-extraction circuit can vary significantly between codes, and one may also have several designs for reading out qubits in a fault-tolerant way.
@@ -28,7 +28,7 @@ class ImplementationName(PrimitiveImplementation[ApplyGate]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
         ...
 ```
 
@@ -41,8 +41,8 @@ It receives the following as input:
 - The ID of the gadget using the primitive.
 
 From these data, the `compile` method must build the following:
-- A list of strings, which are the Stim instructions or gates.
-- A list of `Measurement`s. Each time we add an `MZ` instruction to the Stim code, we must add a corresponding measurement to the list that will be returned.
+- A `QuantumProgram` containing `QProgOperation`s for the Stim instructions or gates. Add physical qubits with `program.add_qubit(...)` and operations with `program.add_operation(...)`.
+- A list of `Measurement`s. Each measurement operation should carry the corresponding measurement's ID in its `measurement_id` field.
 - A list of `Detector`s. They define parity constraints as sets of `Measurement`s.
 - A new, updated `DetectorGraphPort`. This is a dictionary that contains knowledge about the state of each node, or physical qubit, when entering the primitive. It is used to build detectors that depend on measurements from both the previous and the current primitive.
 
@@ -52,6 +52,7 @@ surface code. The full code can be found in `modules/syndrome_extraction/rsc_syn
 ```python
 # This implements the ExtractSyndrome primitive
 class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
+    """RSC implementation of syndrome extraction that directly measures the stabilizers without any optimization."""
 
     def compile(
         self,
@@ -59,48 +60,106 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
 
         check_nodes = instruction.target.check_nodes
-        stim_instructions: List[str] = []
+        program = QuantumProgram(name=f"RSC_syndrome_extraction_{instruction.tag}")
+
         measurements: Dict[TannerNode, List[Measurement]] = {}
         measurements_ordered: List[Measurement] = []
         detectors: List[Detector] = []
 
-        # Physical qubits that we are allowed to used are given in the instruction.
+        if len(check_nodes) == 0:
+            return [], [], [], DetectorGraphPort()
+
+        if len(check_nodes) > len(instruction.physical_ancilla_qubits):
+            raise ValueError(f"""
+                Not enough physical ancilla qubits provided for syndrome extraction.
+                Required: {len(check_nodes)}, Provided: {len(instruction.physical_ancilla_qubits)}
+                This schedule expect 1 ancilla per check node.
+                """)
+
         checks_qubits = {
             check: instruction.physical_ancilla_qubits[check] for check in check_nodes
         }
         data_qubits = instruction.physical_data_qubits
+
         node_to_qubit = {**checks_qubits, **data_qubits}
 
-        # Reset the ancilla used to measure the syndromes.
-        stim_instructions.extend(
-            f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in check_nodes])}"
+        for q in node_to_qubit.values():
+            program.add_qubit(q)
+        tick_on_all_qb = QProgOperation(
+            name="tick", length=0, targets=node_to_qubit.values()
         )
 
-        # Build the syndrome-extraction circuit for one round.
-        single_round_instructions: List[str] = []
+        # RESET ANCILLA
+
+        reset_ancilla_instructions: List[QProgOperation] = []
+        match instruction.ancilla_reset_state:
+            case PauliEigenState.Z_plus:
+                for check in check_nodes:
+                    reset_ancilla_instructions.append(
+                        QProgOperation(
+                            name="RZ",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                    )
+            case PauliEigenState.X_plus:
+                for check in check_nodes:
+                    reset_ancilla_instructions.append(
+                        QProgOperation(
+                            name="RX",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                    )
+            case _:
+                raise ValueError(
+                    f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
+                )
+
+        program.add_operations(reset_ancilla_instructions)
+
+        # SYNDROME EXTRACTION CIRCUIT
+        single_round_instructions: List[QProgOperation] = []
         node_measured = []
         x_checks = []
-        t1, t2, t3, t4 = [], [], [], []
-
-        # For each check:
-        #  - find the neighboring data nodes
-        #  - associate each neighbor with the correct corner of the plaquette
-        #  - add the instructions according to the "Z/N" schedule
+        t1 = []
+        t2 = []
+        t3 = []
+        t4 = []
         for check in check_nodes:
-            neighbourhood = instruction.target.get_neighbourhood(check)
+            neighourhood = instruction.target.get_neighbourhood(check)
             if check.check_type == PauliChar.X:
                 x_checks.append(check)
             ne, se, nw, sw = None, None, None, None
-            for n in neighbourhood:
-                corner = find_corner(n, check)
-                ne = n if corner == "ne"
-                se = n if corner == "se"
-                nw = ...
-                sw = ...
+            for n in neighourhood:
+                if not isinstance(n.coordinates, tuple) or not isinstance(
+                    check.coordinates, tuple
+                ):
+                    raise ValueError(
+                        "Node coordinates must be tuples for the current partitioning logic."
+                    )
 
+                x_idx = 0 if n.coordinates[2] == check.coordinates[2] else 2
+                y_idx = 1 if n.coordinates[3] == check.coordinates[3] else 3
+                dx = n.coordinates[x_idx] > check.coordinates[x_idx]
+                dy = n.coordinates[y_idx] > check.coordinates[y_idx]
+
+                match (dx, dy):
+                    case (False, True):
+                        nw = n
+                    case (False, False):
+                        sw = n
+                    case (True, False):
+                        se = n
+                    case (True, True):
+                        ne = n
+                    case _:
+                        raise ValueError(
+                            f"Unexpected relative coordinates between check node {check.id} and its neighbor {n.id}: {(dx, dy)}. This likely means that the partitioning logic does not match the expected layout."
+                        )
             match check.check_type:
                 case PauliChar.Z:
                     t1.append((se, check)) if se is not None else None
@@ -112,37 +171,45 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     t2.append((check, sw)) if sw is not None else None
                     t3.append((check, ne)) if ne is not None else None
                     t4.append((check, nw)) if nw is not None else None
-
-            # Keep track of the order in which checks are processed.
+                case _:
+                    raise ValueError(
+                        f"Unsupported check type: {check.check_type} in rotated surface code"
+                    )
             node_measured.append(check)
 
-        single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
-        )
-        single_round_instructions.append("TICK")
-        for t in [t1, t2, t3, t4]:
+        single_round_instructions.append(tick_on_all_qb)
+        for xc in x_checks:
             single_round_instructions.append(
-                f"CX {" ".join(f"{str(node_to_qubit[con].integer_index)} {str(node_to_qubit[tar].integer_index)}" for con, tar in t)}"
+                QProgOperation(
+                    name="H",
+                    length=1,
+                    targets={node_to_qubit[xc]},
+                )
             )
-            single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
-        )
-        single_round_instructions.append("TICK")
-        single_round_instructions.append(
-            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in node_measured)}"
-        )
+        single_round_instructions.append(tick_on_all_qb)
+        for t in [t1, t2, t3, t4]:
+            for con, tar in t:
+                single_round_instructions.append(
+                    QProgOperation(
+                        name="CX",
+                        length=1,
+                        targets=[node_to_qubit[con], node_to_qubit[tar]],
+                    )
+                )
+            single_round_instructions.append(tick_on_all_qb)
+        for xc in x_checks:
+            single_round_instructions.append(
+                QProgOperation(
+                    name="H",
+                    length=1,
+                    targets=[node_to_qubit[xc]],
+                )
+            )
+        single_round_instructions.append(tick_on_all_qb)
 
-        # Repeat the round.
-        stim_instructions.append(f"REPEAT {instruction.rounds} {{")
-        stim_instructions.extend([f"   {instr}" for instr in single_round_instructions])
-        stim_instructions.append("}")
-
-        # Create measurements.
-        # Keep information on the order in which they happen in the Stim instructions.
-        # Measurements must specify the gadget and instruction ID so that the compiler can find them.
         for r in range(instruction.rounds):
+            instr = single_round_instructions.copy()
+
             for m in node_measured:
                 measurement = Measurement(
                     node_id=m.id,
@@ -150,20 +217,32 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     parent_primitive_id=instruction.id,
                     tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
                 )
+                instr.append(
+                    QProgOperation(
+                        name="MRZ",
+                        length=1,
+                        targets=[node_to_qubit[m]],
+                        measurement_id=measurement.id,
+                    )
+                )
+
                 measurements.setdefault(m, []).append(measurement)
                 measurements_ordered.append(measurement)
+            program.add_operations(instr)
 
-        # Build detectors.
         for check in check_nodes:
-            # Initial-round detector, depending on the state given by the previous primitive.
-            detector.append(self._detector_round_zero(
+            # Initial round detector
+            detector_zero = instruction._detector_round_zero(
                 record,
                 check,
+                instruction.target.get_neighbourhood(check),  # type: ignore
                 det_graph_port,
                 measurements[check][0],
                 tag=f"{instruction.tag}_det_{check.tag}_r0",
-            ))
-            # Detectors between rounds, mapping each node's measurement to itself in the previous round.
+            )
+            if detector_zero is not None:
+                detectors.append(detector_zero)
+            # Detectors between rounds
             for r in range(1, instruction.rounds):
                 previous_measurement = measurements[check][r - 1]
                 current_measurement = measurements[check][r]
@@ -173,7 +252,7 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 )
                 detectors.append(detector)
 
-        # Set the next graph-port state to STABLE for all nodes involved in syndrome extraction.
+        # Set next graph port state to STABLE for all nodes involved in the syndrome extraction
         new_graph_port = DetectorGraphPort()
         for node in instruction.target.check_nodes | instruction.target.variable_nodes:
             new_graph_port[node] = QubitPortState(
@@ -181,7 +260,7 @@ class RSCSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
                 connected_nodes=instruction.target.get_neighbourhood(node),
             )
 
-        return stim_instructions, measurements_ordered, detectors, new_graph_port
+        return program, measurements_ordered, detectors, new_graph_port
 ```
 
 This snippet skips the hard part that implements the detector linked with the previous primitive by wrapping it into the `_detector_round_zero` method. A detailed description of how this function works is provided in the next section.

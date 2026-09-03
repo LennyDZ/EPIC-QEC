@@ -6,14 +6,11 @@ from typing import Any, Dict, List, Set, Tuple, TypeVar, overload
 from uuid import UUID
 import warnings
 
-from epic.core.data_structure.quantum_program import QProgOperation
-from epic.core.visualization.quantum_program_vis import draw_quantum_program
-
 
 from .compiled_experiment import CompiledExperiment
 from .measurement_record import MeasurementRecord
 from .quantum_memory import QuantumMemory
-from ..data_structure import TannerNode, QuantumProgram
+from ..data_structure import TannerNode, QuantumProgram, QProgOperation
 from ..qec_object import (
     LogicalOperator,
     LogicalQubit,

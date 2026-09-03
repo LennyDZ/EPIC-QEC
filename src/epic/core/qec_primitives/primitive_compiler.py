@@ -6,11 +6,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from ..compilation.measurement_record import MeasurementRecordView
-from ..compilation.quantum_memory import QuantumMemory
-from ..data_structure.quantum_program import QuantumProgram
-from ..data_structure.tanner_node import TannerNode
-from ..qec_object.detector import Detector, DetectorGraphPort, QubitPortState
-from ..qec_object.measurement import Measurement
+from ..data_structure import QuantumProgram, TannerNode
+from ..qec_object import Detector, DetectorGraphPort, QubitPortState, Measurement
 from .interfaces import QECPrimitive
 
 

@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
-from ..data_structure.tanner_node import TannerNode
+from ..data_structure import TannerNode
 from .measurement import Measurement
 
 

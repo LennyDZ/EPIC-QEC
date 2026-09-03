@@ -3,13 +3,10 @@ from uuid import UUID
 
 from pydantic import model_validator
 
-from epic.core.compilation.quantum_memory import QuantumMemory
+from epic.core.compilation import QuantumMemory
 from epic.core.data_structure import PauliChar, TannerGraph, PhysicalQubit
 from epic.core.language import LogicGadget
-from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable
-
-from epic.core.qec_object.logical_operator import LogicalOperator
-from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable, LogicalOperator
 from epic.core.qec_primitives.interfaces import QECPrimitive, Readout
 
 

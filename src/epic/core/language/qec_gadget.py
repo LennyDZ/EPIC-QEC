@@ -6,14 +6,10 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from epic.core.data_structure.physical_qubit import PhysicalQubit
-
+from ..data_structure import PhysicalQubit
 from ..compilation.measurement_record import MeasurementRecordView
 from ..compilation.quantum_memory import QuantumMemory
-from ..qec_object.logical_operator import LogicalOperatorUpdate
-from ..qec_object.logical_qubit import LogicalQubit
-from ..qec_object.observable import Observable
-from ..qec_object.stabilizer_code import StabilizerCode
+from ..qec_object import LogicalOperatorUpdate, LogicalQubit, Observable, StabilizerCode
 
 if TYPE_CHECKING:
     from ..qec_primitives.interfaces.qec_primitive import QECPrimitive
@@ -59,7 +55,12 @@ class LogicGadget(QECGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
+    ) -> Tuple[
+        Dict[UUID, LogicalOperatorUpdate],
+        List[Observable],
+        List[QECPrimitive],
+        List[PhysicalQubit],
+    ]:
         """Compile this gadget into a sequence of primitive code instructions, along with any logical
         operator updates and observables produced by the gadget."""
         pass
@@ -78,7 +79,12 @@ class CodeGadget(QECGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
+    ) -> Tuple[
+        Dict[UUID, LogicalOperatorUpdate],
+        List[Observable],
+        List[QECPrimitive],
+        List[PhysicalQubit],
+    ]:
         """Compile this gadget into a sequence of primitive code instructions, along with any logical operator updates and observables produced by the gadget."""
         pass
 

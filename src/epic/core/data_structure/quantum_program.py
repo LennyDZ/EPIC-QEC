@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
-from typing import Dict, Optional, Set, List, Tuple
+from typing import Dict, Set, List, Tuple, TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from epic.core.language.qec_gadget import AllocCode
-from ..qec_object import Measurement
-
 from .physical_qubit import PhysicalQubit
-from ..language import QECGadget
+
+# `language` imports back from this module, so it's only imported for type
+# checking here; runtime uses import it lazily to avoid a circular import.
+if TYPE_CHECKING:
+    from ..language import QECGadget, AllocCode
+
 
 class ProgramQubit(BaseModel):
     """
@@ -99,6 +103,8 @@ class QuantumProgram(BaseModel):
         Returns:
             ProgramQubit: The newly added qubit.
         """
+        from ..language import AllocCode  # local import to avoid a circular import
+
         if qubit is None:
             qubit = ProgramQubit(name=f"q{self.width}")
 

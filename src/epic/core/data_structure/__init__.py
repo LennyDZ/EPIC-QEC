@@ -15,6 +15,7 @@ __all__ = [
     "TannerGraph",
     "PauliChar",
     "PauliEigenState",
+    "GraphAlgorithm",
     "PauliString",
     "PhysicalQubit",
     "ProgramQubit",

@@ -4,14 +4,10 @@ from uuid import UUID
 
 from pydantic import Field
 
-from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure import PauliEigenState, TannerNode
-from epic.core.data_structure.physical_qubit import PhysicalQubit
-from epic.core.data_structure.tanner_graph import TannerGraph
+from epic.core.compilation import MeasurementRecordView, QuantumMemory
+from epic.core.data_structure import PauliEigenState, TannerNode, PhysicalQubit
 from epic.core.language import CodeGadget
-from epic.core.qec_object import LogicalOperatorUpdate, Observable
-from epic.core.qec_object.stabilizer_code import StabilizerCode
+from epic.core.qec_object import LogicalOperatorUpdate, Observable, StabilizerCode
 from epic.core.qec_primitives.interfaces import ApplyGate, QECPrimitive
 from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
 

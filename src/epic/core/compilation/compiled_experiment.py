@@ -4,11 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from epic.core.data_structure.physical_qubit import PhysicalQubit
-from epic.core.data_structure.quantum_program import QuantumProgram
-from epic.core.experiment.noise_model import NoiseModel
-
 from ..qec_object import Detector, Observable, Measurement
+from ..data_structure import PhysicalQubit, QuantumProgram
+from ..experiment import NoiseModel
 
 from .measurement_record import MeasurementRecord
 
