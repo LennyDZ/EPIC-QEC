@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from epic.core.compilation.compilation_context import CompilationContext
+from epic.core.data_structure.quantum_program import QProgOperation
 from epic.core.qec_object.detector import NodeKnowledge, QubitPortState
 from epic.core.qec_object.measurement import Measurement
 from epic.core.qec_object.observable import Observable
@@ -199,13 +200,20 @@ class TestCompilationContext:
         observable = Observable(tag="obs")
         registered_context.measurement_record.add_measurement(measurement_a)
         registered_context.add_detector(detector)
-        registered_context.add_circuit_instruction(["H 0", "M 0"])
+        registered_context.add_circuit_operation(
+            [
+                QProgOperation(name="H", length=1),
+                QProgOperation(name="M", length=1),
+            ]
+        )
         registered_context.add_observable(observable)
 
         compiled = registered_context.to_compiled_experiment()
 
         assert compiled.record is registered_context.measurement_record
-        assert compiled.circuit_instructions == ["H 0", "M 0"]
+        assert [
+            (operation.name, start) for operation, start in compiled.program.operations
+        ] == [("H", 0), ("M", 0)]
         assert compiled.detectors == [detector]
         assert compiled.observables == [observable]
 

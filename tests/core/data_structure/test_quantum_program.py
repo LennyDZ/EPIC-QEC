@@ -20,9 +20,10 @@ class TestQProgOperation:
         assert operation.length == 1
         assert tick.length == 0
 
-    def test_rejects_zero_length_non_tick_operations(self):
-        with pytest.raises(ValidationError, match="Only tick"):
-            QProgOperation(name="H", length=0, targets=[])
+    def test_accepts_zero_length_non_tick_operations(self):
+        operation = QProgOperation(name="H", length=0, targets=[])
+
+        assert operation.length == 0
 
     @pytest.mark.parametrize("length", [-1, 1.5])
     def test_rejects_invalid_lengths(self, length):
@@ -73,14 +74,16 @@ class TestQuantumProgram:
         assert second_operation.targets == [q0, q1]
         assert program.depth == 3
 
-    def test_rejects_qubit_not_in_program(self):
+    def test_add_operation_registers_qubit_not_in_program(self):
         program = QuantumProgram(name="test")
         external_qubit = ProgramQubit(name="external")
 
-        with pytest.raises(ValueError, match="not part of the program"):
-            program.add_operation(
-                QProgOperation(name="H", length=1, targets=[external_qubit])
-            )
+        program.add_operation(
+            QProgOperation(name="H", length=1, targets=[external_qubit])
+        )
+
+        assert external_qubit in program.qubits
+        assert program.width == 1
 
     def test_add_tick_creates_zero_length_operation(self):
         program = QuantumProgram(name="test")
@@ -114,15 +117,17 @@ class TestQuantumProgram:
         assert names_and_starts == [("H", 0), ("CX", 1), ("MZ", 3)]
         assert program.depth == 4
 
-    def test_add_operation_rejects_sub_program_with_qubit_not_in_program(self):
+    def test_add_operation_registers_sub_program_qubit_not_in_program(self):
         program = QuantumProgram(name="test")
         program.add_qubit()
 
         sub_program = QuantumProgram(name="sub")
-        sub_program.add_qubit()
+        sub_qubit = sub_program.add_qubit()
 
-        with pytest.raises(ValueError, match="not part of the program"):
-            program.add_operation(sub_program)
+        program.add_operation(sub_program)
+
+        assert sub_qubit in program.qubits
+        assert program.width == 2
 
     def test_add_operation_preserves_ticks_inside_sub_program(self):
         program = QuantumProgram(name="test")
