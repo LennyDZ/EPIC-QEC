@@ -244,6 +244,12 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
             instr= single_round_instructions.copy()
             
             for m in ordered_checks:
+                measurement = Measurement(
+                    node_id=m.id,
+                    parent_gadget_id=parent_gadget_id,
+                    parent_primitive_id=instruction.id,
+                    tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
+                )
                 instr.append(
                     QProgOperation(
                         name="MRZ",
@@ -251,12 +257,6 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                         targets=[node_to_qubit[m]],
                         measurement_id=measurement.id,
                     )
-                )
-                measurement = Measurement(
-                    node_id=m.id,
-                    parent_gadget_id=parent_gadget_id,
-                    parent_primitive_id=instruction.id,
-                    tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
                 )
                 measurements_by_node.setdefault(m.id, []).append(measurement)
                 measurements.append(measurement)

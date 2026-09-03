@@ -8,6 +8,7 @@ from epic.core.compilation.measurement_record import (
 )
 
 from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, CheckNode, QuantumProgram, QProgOperation
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 from epic.core.qec_object import (
     Detector,
     Measurement,
@@ -49,7 +50,8 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
         data_qubits = instruction.physical_data_qubits
 
-        program.add_qubits(list(checks_qubits.values()) + list(data_qubits.values()))
+        for qubit in list(checks_qubits.values()) + list(data_qubits.values()):
+            program.add_qubit(qubit)
 
         # RESET ANCILLA
         reset_ancilla_instructions: List[QProgOperation] = []
@@ -83,9 +85,9 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
         for check in check_nodes:
             if check.check_type:
                 check_circuit = self._extract_check_circuit(
-                    checks_qubits[check].integer_index,
+                    checks_qubits[check],
                     [
-                        data_qubits[n].integer_index  # type: ignore
+                        data_qubits[n]  # type: ignore
                         for n in instruction.target.get_neighbourhood(check)
                     ],
                     check.check_type,
@@ -150,7 +152,7 @@ class SimpleSyndromeExtraction(PrimitiveImplementation[ExtractSyndrome]):
 
     @staticmethod
     def _extract_check_circuit(
-        check: int, neighbours: List[int], check_type: PauliChar
+        check: PhysicalQubit, neighbours: List[PhysicalQubit], check_type: PauliChar
     ) -> List[QProgOperation]:
         instructions: List[QProgOperation] = []
         match (check_type):

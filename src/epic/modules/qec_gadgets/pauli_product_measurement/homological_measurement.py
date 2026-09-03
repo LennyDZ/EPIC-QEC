@@ -28,11 +28,9 @@ from epic.core.qec_object import (
 )
 from epic.core.qec_primitives.interfaces.apply_gate import ApplyGate
 from epic.core.qec_primitives.interfaces.extract_syndrome import ExtractSyndrome
-from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
 from epic.core.qec_primitives.interfaces.readout import Readout
 from epic.modules.qec_gadgets.pauli_product_measurement.ppm import PPM
 from epic.modules.stabilizers_codes.css_code import CSSCode
-from epic.core.data_structure.graph_algorithm import GraphAlgorithm as ga
 
 
 class HomologicalMeasurement(PPM):

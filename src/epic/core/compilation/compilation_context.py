@@ -213,7 +213,7 @@ class CompilationContext:
                 del self._operator_to_qubit[op.id]
         del self._uuid_memory[code_id]
         del self._naming_registry[code_varname]
-        self.quantum_memory.free_qubits(qubits=list(code.tanner_graph.variable_nodes))
+        # self.quantum_memory.free_qubits(qubits=list(code.tanner_graph.variable_nodes))
 
     def allocated_code_varnames(self) -> List[str]:
         """Return the variable names of all currently registered codes."""
