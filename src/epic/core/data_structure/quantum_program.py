@@ -34,15 +34,6 @@ class ProgramQubit(BaseModel):
             return NotImplemented
         return self.id == other.id
 
-    def update_latest_usage(self, position: int) -> None:
-        """
-        Update the last position until which the qubit is used.
-
-        Args:
-            position (int): The new position until which the qubit is used.
-        """
-        self.used_until = position
-
 @dataclass(frozen=True)
 class QProgOperation:
     """
@@ -52,7 +43,7 @@ class QProgOperation:
         name (str): The name of the quantum operation.
         length (int): The duration of the operation in time steps.
         targets (List[ProgramQubit | PhysicalQubit]): A list of qubits involved in the operation.
-        implementation (Optional[List[QECGadget]]): An optional list of QECGadgets that implement the operation.
+        implementation (QECGadget): An optional QECGadget that implement the operation.
     """
 
     name: str

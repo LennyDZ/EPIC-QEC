@@ -156,10 +156,10 @@ class QuantumMemory(BaseModel):
                     f"Not enough free qubits to lock {n} ancilla qubits. Only {len(self._free_qubits)} free qubits available."
                 )
 
-        locked_qubits = set()
+        locked_qubits = list()
         for _ in range(n):
             q = self._free_qubits.pop()
-            locked_qubits.add(q)
+            locked_qubits.append(q)
 
         return locked_qubits
 
