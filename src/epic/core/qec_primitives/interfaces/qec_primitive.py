@@ -5,12 +5,11 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from epic.core.data_structure.tanner_node import TannerNode, VariableNode
 
 from ...qec_object.detector import DetectorGraphPort
 from ...compilation.measurement_record import MeasurementRecordView
 from ...compilation.quantum_memory import PhysicalQubit, QuantumMemory
-from ...data_structure import TannerGraph
+from ...data_structure import TannerGraph, TannerNode, VariableNode
 from ...qec_object import Detector, Measurement
 
 

@@ -3,12 +3,10 @@ from uuid import UUID
 
 from pydantic import model_validator
 
-from epic.core.compilation.quantum_memory import QuantumMemory
-from epic.core.data_structure import PauliChar, TannerGraph
+from epic.core.compilation import QuantumMemory
+from epic.core.data_structure import PauliChar, TannerGraph, PhysicalQubit
 from epic.core.language import LogicGadget
-from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable
-from epic.core.qec_object.logical_operator import LogicalOperator
-from epic.core.qec_object.logical_qubit import LogicalQubit
+from epic.core.qec_object import LogicalOperatorUpdate, Measurement, Observable, LogicalOperator
 from epic.core.qec_primitives.interfaces import QECPrimitive, Readout
 
 
@@ -33,7 +31,7 @@ class NaiveLogicalMeasurement(LogicGadget):
         quantum_memory: QuantumMemory,
         timestep,
         objective_distance,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         primitives = []
         lop_targets: List[LogicalOperator] = []
         for lop, basis in zip(resolved_targets, self.basis):
@@ -47,16 +45,21 @@ class NaiveLogicalMeasurement(LogicGadget):
                         f"Unsupported measurement basis {basis} for logical operator measurement. Only X and Z are supported."
                     )
 
+        qubits_used = []
+
         for lop in lop_targets:
             target = TannerGraph(
                 variable_nodes=set(lop.target_nodes),
                 check_nodes=set(),
                 edges=set(),
             )
+            qubits_used.extend(
+                quantum_memory.node_allocation_snapshot(target.variable_nodes).values()
+            )
             primitives.append(
                 Readout(
                     target=target,
-                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                    physical_data_qubits=quantum_memory.node_allocation_snapshot(
                         target.variable_nodes
                     ),
                     physical_ancilla_qubits={},  # no ancilla needed since no check in target nodes
@@ -76,4 +79,4 @@ class NaiveLogicalMeasurement(LogicGadget):
             },
         )
 
-        return dict(), [observable], primitives
+        return dict(), [observable], primitives, qubits_used

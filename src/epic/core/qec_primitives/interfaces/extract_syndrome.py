@@ -2,12 +2,9 @@ from typing import Dict, Self, Tuple, Set
 
 from pydantic import Field, PrivateAttr, field_validator, model_validator
 
-from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure.tanner_node import CheckNode, VariableNode
-from epic.core.qec_object.detector import Detector, DetectorGraphPort, NodeKnowledge
-from epic.core.qec_object.measurement import Measurement
-
-from ...data_structure import PauliEigenState
+from ...compilation.measurement_record import MeasurementRecordView
+from ...data_structure import PauliEigenState, CheckNode, VariableNode
+from ...qec_object import Detector, DetectorGraphPort, NodeKnowledge, Measurement
 from .qec_primitive import QECPrimitive
 
 

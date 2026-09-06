@@ -3,7 +3,7 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, PrivateAttr
 
-from ..qec_object import Measurement
+from ..qec_object.measurement import Measurement
 
 
 class MeasurementRecord(BaseModel):
@@ -27,6 +27,12 @@ class MeasurementRecord(BaseModel):
     def size(self) -> int:
         """Return the number of measurements in the record."""
         return len(self._measurements)
+
+    @property
+    def by_measurement_id(self):
+        """Return all measurements indexed by their unique measurement id."""
+        return {m.id: m for m in self._measurements}
+
 
     def _index_measurement(self, measurement: Measurement) -> None:
         """Index a single measurement by node id, gadget timestep, primitive timestep, and event type."""

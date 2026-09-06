@@ -34,7 +34,7 @@ class TransversalH(CodeGadget):
             a = ApplyGate(
                 target=code.tanner_graph,
                 target_nodes=code.tanner_graph.variable_nodes,  # type: ignore
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     code.tanner_graph.variable_nodes
                 ),
                 physical_ancilla_qubits={},  # no ancillas needed for transversal H
@@ -67,7 +67,7 @@ class TransversalH(CodeGadget):
 
             s = ExtractSyndrome(
                 target=code.tanner_graph,
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     code.tanner_graph.variable_nodes
                 ),
                 physical_ancilla_qubits=anc_for_syndrome_map,  # type: ignore
@@ -75,7 +75,9 @@ class TransversalH(CodeGadget):
                 rounds=objective_distance,
                 detector_graph_map=dgmap,
             )
+            used_qubits = quantum_memory.node_allocation_snapshot(
+                code.tanner_graph.variable_nodes
+            ) + list(anc_for_syndrome)
 
-            quantum_memory.unlock_ancilla_qubits(list(anc_for_syndrome), self.id)
             primitives.extend([a, s])
-        return {}, [], primitives
+        return {}, [], primitives, used_qubits

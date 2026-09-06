@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Tuple
 from uuid import UUID
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 
 from pydantic import Field
 
@@ -40,7 +41,7 @@ class AutQecTransversal(CodeGadget):
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
 
         if len(resolved_targets) != 1:
             raise ValueError("AutQecTransversal gadget should only target one code.")
@@ -69,7 +70,7 @@ class AutQecTransversal(CodeGadget):
             a = ApplyGate(
                 target=code.tanner_graph,
                 target_nodes=set(members),
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
                 physical_ancilla_qubits={},  # no ancillas needed for single qubit
                 gates=[gate],
                 tag=f"{gate}_layer_of_automorphism",
@@ -85,7 +86,7 @@ class AutQecTransversal(CodeGadget):
                 a = ApplyGate(
                     target=code.tanner_graph,
                     target_nodes={(i, j)},  # type: ignore[arg-type]
-                    physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
+                    physical_data_qubits=quantum_memory.node_allocation_snapshot(code.tanner_graph.variable_nodes),  # type: ignore
                     physical_ancilla_qubits={},  # no ancillas needed for swaps
                     gates=["SWAP"],
                     tag=f"swap_{i.tag}_{j.tag}_of_automorphism",
@@ -94,16 +95,19 @@ class AutQecTransversal(CodeGadget):
             else:
                 quantum_memory.swap_data_qubits(i, j)
 
-        anc_for_syndrome = quantum_memory.lock_ancilla_qubits(
+        anc_for_syndrome = quantum_memory.get_ancilla_qubits(
             len(code.tanner_graph.check_nodes), self.id
         )
-        anc_for_syndrome_map = {
+
+        qubits_used = list(
+            quantum_memory.node_allocation_snapshot(code.tanner_graph.variable_nodes).values()
+        ) + list(anc_for_syndrome)
             n: q for n, q in zip(code.tanner_graph.check_nodes, anc_for_syndrome)
         }
 
         s = ExtractSyndrome(
             target=code.tanner_graph,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 code.tanner_graph.variable_nodes
             ),
             physical_ancilla_qubits=anc_for_syndrome_map,  # type: ignore
@@ -113,6 +117,5 @@ class AutQecTransversal(CodeGadget):
         )
 
         primitives.append(s)
-        quantum_memory.unlock_ancilla_qubits(list(anc_for_syndrome), self.id)
 
-        return {}, [], primitives
+        return {}, [], primitives, qubits_used

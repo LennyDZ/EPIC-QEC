@@ -1,6 +1,6 @@
 from typing import List, Tuple
 from uuid import UUID
-
+from epic.core.data_structure.quantum_program import QuantumProgram
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.qec_object import Detector, Measurement
 from epic.core.qec_object.detector import DetectorGraphPort
@@ -14,5 +14,5 @@ class EmptyProcedure(PrimitiveImplementation[QECProcedure]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
-        return [], [], [], DetectorGraphPort()
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
+        return QuantumProgram(), [], [], DetectorGraphPort()

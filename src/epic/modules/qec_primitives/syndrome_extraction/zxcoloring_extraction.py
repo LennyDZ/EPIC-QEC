@@ -2,7 +2,14 @@ from typing import Dict, List, Tuple
 from uuid import UUID
 
 from epic.core.compilation.measurement_record import MeasurementRecordView
-from epic.core.data_structure import PauliChar, PauliEigenState, TannerNode, TannerEdge
+from epic.core.data_structure import (
+    PauliChar,
+    PauliEigenState,
+    TannerNode,
+    TannerEdge,
+    QuantumProgram,
+    QProgOperation,
+)
 from epic.core.qec_object import (
     Detector,
     DetectorGraphPort,
@@ -52,10 +59,12 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         record: MeasurementRecordView,
         det_graph_port: DetectorGraphPort,
         parent_gadget_id: UUID,
-    ) -> Tuple[List[str], List[Measurement], List[Detector], DetectorGraphPort]:
+    ) -> Tuple[QuantumProgram, List[Measurement], List[Detector], DetectorGraphPort]:
 
         check_nodes = instruction.target.check_nodes
-        stim_instructions = []
+        program = QuantumProgram(
+            name=f"ZX_coloring_syndrome_extraction_{instruction.tag}"
+        )
         detectors = []
         measurements = []
 
@@ -72,6 +81,9 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         data_qubits = instruction.physical_data_qubits
 
         node_to_qubit = {**checks_qubits, **data_qubits}
+
+        for qubit in node_to_qubit.values():
+            program.add_qubit(qubit)
 
         # Separate X and Z edges
         tanner = instruction.target
@@ -103,78 +115,134 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
         x_checks = [
             check for check in ordered_checks if check.check_type == PauliChar.X
         ]
-        reset_instructions = []
+
+        # Reset ALL ancilla:
         match instruction.ancilla_reset_state:
             case PauliEigenState.Z_plus:
-                reset_instructions.append(
-                    f"RZ {" ".join([str(node_to_qubit[check].integer_index) for check in ordered_checks])}"
+                program.add_operations(
+                    [
+                        QProgOperation(
+                            name="RZ",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                        for check in ordered_checks
+                    ]
                 )
             case PauliEigenState.X_plus:
-                reset_instructions.append(
-                    f"RX {" ".join([str(node_to_qubit[check].integer_index) for check in ordered_checks])}"
+                program.add_operations(
+                    [
+                        QProgOperation(
+                            name="RX",
+                            length=1,
+                            targets=[node_to_qubit[check]],
+                        )
+                        for check in ordered_checks
+                    ]
                 )
             case _:
                 raise ValueError(
                     f"Unsupported ancilla reset state: {instruction.ancilla_reset_state}"
                 )
-        # Reset ALL ancilla:
-        stim_instructions.extend(reset_instructions)
         x_coloring, x_color_count = self._color_edges(x_edges)
         z_coloring, z_color_count = self._color_edges(z_edges)
-        single_round_instructions: List[str] = []
+        single_round_instructions: List[QProgOperation] = []
 
         # Apply CNOTs for X and Z edges separately
         # X checks:
         if x_checks:
-            single_round_instructions.append(
-                f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
+
+            single_round_instructions.extend(
+                [
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[node_to_qubit[xc]],
+                    )
+                    for xc in x_checks
+                ]
             )
-            single_round_instructions.append("TICK")
+            single_round_instructions.append(
+                QProgOperation(
+                    name="tick",
+                    length=0,
+                    targets=node_to_qubit.values(),
+                )
+            )
         x_cnot_steps = [[] for _ in range(x_color_count + 1)]
         for edge in x_edges:
-            var_slot = node_to_qubit[edge.variable_node].integer_index
-            check_slot = node_to_qubit[edge.check_node].integer_index
+            var_slot = node_to_qubit[edge.variable_node]
+            check_slot = node_to_qubit[edge.check_node]
             color = x_coloring[edge]
             x_cnot_steps[color].append((check_slot, var_slot))
         for step in x_cnot_steps:
             if not step:
                 continue
+            for check, var in step:
+                single_round_instructions.append(
+                    QProgOperation(
+                        name="CX",
+                        length=1,
+                        targets=[check, var],
+                    )
+                )
+
             single_round_instructions.append(
-                f"CX " + " ".join(f"{check} {var}" for check, var in step)
+                QProgOperation(
+                    name="tick",
+                    length=0,
+                    targets=node_to_qubit.values(),
+                )
             )
-            single_round_instructions.append("TICK")
         if x_checks:
-            single_round_instructions.append(
-                f"H {" ".join(str(node_to_qubit[xc].integer_index) for xc in x_checks)}"
+            single_round_instructions.extend(
+                [
+                    QProgOperation(
+                        name="H",
+                        length=1,
+                        targets=[node_to_qubit[xc]],
+                    )
+                    for xc in x_checks
+                ]
             )
-            single_round_instructions.append("TICK")
+            single_round_instructions.append(
+                QProgOperation(
+                    name="tick",
+                    length=0,
+                    targets=node_to_qubit.values(),
+                )
+            )
 
         # Z checks:
         z_cnot_steps = [[] for _ in range(z_color_count + 1)]
         for edge in z_edges:
-            var_slot = node_to_qubit[edge.variable_node].integer_index
-            check_slot = node_to_qubit[edge.check_node].integer_index
+            var_qubit = node_to_qubit[edge.variable_node]
+            check_qubit = node_to_qubit[edge.check_node]
             color = z_coloring[edge]
-            z_cnot_steps[color].append((check_slot, var_slot))
+            z_cnot_steps[color].append((check_qubit, var_qubit))
         for step in z_cnot_steps:
             if not step:
                 continue
+            for check, var in step:
+                single_round_instructions.append(
+                    QProgOperation(
+                        name="CX",
+                        length=1,
+                        targets=[var, check],
+                    )
+                )
             single_round_instructions.append(
-                f"CX " + " ".join(f"{var} {check}" for check, var in step)
+                QProgOperation(
+                    name="tick",
+                    length=0,
+                    targets=node_to_qubit.values(),
+                )
             )
-            single_round_instructions.append("TICK")
-
-        single_round_instructions.append(
-            f"MRZ {" ".join(str(node_to_qubit[c].integer_index) for c in ordered_checks)}"
-        )
-        stim_instructions.append(f"REPEAT {instruction.rounds} {{")
-        stim_instructions.extend(
-            [f"    {instr}" for instr in single_round_instructions]
-        )
-        stim_instructions.append("}")
 
         measurements_by_node = {}
         for r in range(instruction.rounds):
+            instr= single_round_instructions.copy()
+            
             for m in ordered_checks:
                 measurement = Measurement(
                     node_id=m.id,
@@ -182,9 +250,18 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                     parent_primitive_id=instruction.id,
                     tag=f"{instruction.tag}_synd_{m.tag}_r{r}",
                 )
+                instr.append(
+                    QProgOperation(
+                        name="MRZ",
+                        length=1,
+                        targets=[node_to_qubit[m]],
+                        measurement_id=measurement.id,
+                    )
+                )
                 measurements_by_node.setdefault(m.id, []).append(measurement)
                 measurements.append(measurement)
-
+            program.add_operations(instr)
+        
         for check in ordered_checks:
             detector_zero = instruction._detector_round_zero(
                 record,
@@ -220,4 +297,4 @@ class ZXColoringExtraction(PrimitiveImplementation[ExtractSyndrome]):
                         connected_nodes={node},  # type: ignore
                     )
 
-        return stim_instructions, measurements, detectors, new_graph_port
+        return program, measurements, detectors, new_graph_port

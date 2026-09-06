@@ -18,12 +18,12 @@ def compile(
         quantum_memory: QuantumMemory,
         timestep: int,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
 ```
 
 The function is given the resolved targets, which are codes for `CodeGadget` and logical qubits with their host codes for `LogicGadget`. It also receives the following information from the compiler:
-- A view of the measurement record, which is an object maintained by the compiler that contains the measurements performed so far. *Why though? I'm not sure anymore, and I should remove this parameter ASAP.*
-- An access to the quantum memory, to reserve eventally needed ancilla and to be aware of the data qubits assignement.
+- A view of the measurement record, which contains the measurements performed so far and can be used to construct detector, observable, or correction references.
+- Access to the quantum memory, to reserve needed ancilla and inspect the data-qubit assignment.
 - The timestep, which indicates the position at which this gadget was processed by the compiler.
 - The objective distance of the whole experiment. This can typically be used to determine how many rounds of error correction should be performed.
 
@@ -31,6 +31,7 @@ Then it must return the following information:
 - A dictionary that includes any correction to apply to the logical operators
 - A list of observables
 - A list of primitive instructions
+- A list of physical qubits used by the gadget, which the compiler unlocks after the gadget's scheduled operation finishes
 
 If any additional parameters are needed, they can be added as class attributes, and they will be provided when using the gadget while writing the program. They will then naturally be available in the method because it is not static.
 
@@ -55,7 +56,7 @@ class RSCSurgery(LogicGadget):
         quantum_memory,
         timestep,
         objective_distance: int,
-    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive]]:
+    ) -> Tuple[Dict[UUID, LogicalOperatorUpdate], List[Observable], List[QECPrimitive], List[PhysicalQubit]]:
         # Helper to check that the operation is valid (code position/orientation, etc.)
         _check_validity(resolved_targets, self.product_to_measure)
 
@@ -86,7 +87,7 @@ class RSCSurgery(LogicGadget):
         # Get ancilla for the ancilla data qubits in the merge
         # And for the checks, so that we can use them to measure the stabilizser
         # Make sure to unlock them at the end
-        ancilla = quantum_memory.lock_ancilla_qubits(n=len(ancilla_system.variable_nodes + merged_code.check_nodes), requestor_id=self.id)
+        ancilla = quantum_memory.get_ancilla_qubits(n=len(ancilla_system.variable_nodes + merged_code.check_nodes), requestor_id=self.id)
 
         # map ancilla to node so we always reuse the same
         # This is not strictly necessary, and we could for example reserve less ancilla and use them to measure several different stabilizers
@@ -106,7 +107,7 @@ class RSCSurgery(LogicGadget):
         # Primitive 2: do d rounds of syndrome measurement on the merged system.
         merged_syndrome = ExtractSyndrome(
             target=merged_system,
-            physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+            physical_data_qubits=quantum_memory.node_allocation_snapshot(
                 merged_system.variable_nodes
             )
             | {k: v for k, v in ancilla_qubits_to_node.items() if isinstance(k, VariableNode)},
@@ -132,7 +133,7 @@ class RSCSurgery(LogicGadget):
         split_syndrome = [
             ExtractSyndrome(
                 target=initial_code,
-                physical_data_qubits=quantum_memory.data_qubits_allocation_snapshot(
+                physical_data_qubits=quantum_memory.node_allocation_snapshot(
                     initial_code.variable_nodes
                 ),
                 physical_ancilla_qubits=ancilla_qubits_to_node,
@@ -184,7 +185,7 @@ class RSCSurgery(LogicGadget):
             qubits=list(ancilla), owner_id=self.id
         )
 
-        return correction, observable, primitives
+        return correction, observable, primitives, list(ancilla)
 ```
 
 Although the full implementation may require some tedious computation to navigate the node positions, the overall logic remains quite simple. This allows us to obtain a circuit with detectors, while the corrections and observables are handled as part of the computation as well.
@@ -192,10 +193,9 @@ Although the full implementation may require some tedious computation to navigat
 We now state some important points to remember when implementing a gadget:
 - The state, meaning the Tanner-graph structure, of the stabilizer-code object must not be changed by the gadget. To build the merged code, for example, we build a Tanner graph that uses references to the code's graph, but we do not modify it.
 - The logical operators must not be changed directly. We only provide `LogicalOperatorUpdate`, which will be processed by the compiler after the gadget is processed. These corrections will be effective only in the next gadget. A logical-operator update can also remap the logical operator to some other support, as long as it stays within the same code.
-- All the ancilla reserved (locked) should be unlock. Otherwise they will not be reusable by the next gadgets.
 - The measurements in the observables and corrections must include the primitive ID and the gadget ID. Then the compiler will associate them with the last measurement instruction of the given node ID that was added in the corresponding primitive.
 - The observable's tag is used as the variable name for it.
 - If the observable corresponds to a logical measurement, it must specify which logical operators are associated with it. This is required so that the compiler can complete it with the corrections previously added to these logical operators.
-- To preserve compilation performance, we want to avoid complex computation during gadget compilation. Ideally, we want the `compile()` function to have constant or linear complexity, but anything polynomial is still acceptable.
+- To preserve compilation performance, we want to avoid complex computation during gadget compilation. Ideally, we want the `compile()` function to have constant or linear complexity, but anything polynomial is acceptable. This is not a strict rule, but if one wants to compile large logical program, having np complexity quickly makes it impossible.
 
-More information can be found in the API documentation. If you'd like to add your own gadget to the project, have a look at the contributor guide.
+More information can be found in the API documentation. If you'd like to add your own gadget to the project, feel free to do a pull request, follwing the usual good practices of github.

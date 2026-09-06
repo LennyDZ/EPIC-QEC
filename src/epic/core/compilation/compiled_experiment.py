@@ -1,12 +1,12 @@
 from functools import cached_property
 from typing import Dict, List
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from epic.core.experiment.noise_model import NoiseModel
-
-from ..qec_object import Measurement
-from ..qec_object import Detector, Observable
+from ..qec_object import Detector, Observable, Measurement
+from ..data_structure import PhysicalQubit, QuantumProgram
+from ..experiment import NoiseModel
 
 from .measurement_record import MeasurementRecord
 
@@ -17,14 +17,11 @@ class CompiledExperiment(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     record: MeasurementRecord
-    circuit_instructions: list[str]
+    program: QuantumProgram
     detectors: list[Detector]
     observables: list[Observable]
 
-    @cached_property
-    def measurement_to_index(self) -> Dict[Measurement, int]:
-        """Map each recorded measurement to its position in the Stim record stream."""
-        return {m: idx for idx, m in enumerate(self.record.view().measurements())}
+    measurement_to_index: Dict[Measurement, int] = {}
 
     def _rec_negative_index(self, measurement: Measurement) -> int:
         """Return the Stim ``rec`` offset for a recorded measurement."""
@@ -71,35 +68,31 @@ class CompiledExperiment(BaseModel):
         noise_model: NoiseModel | None = None,
         verbose: bool = False,
     ) -> str:
-        """Render the compiled experiment as a Stim program and apply noise.
 
-        Args:
-            observables: Groups of observable tags to combine into Stim observables.
-            noise_model: Noise model applied to the rendered program.
-
-        Returns:
-            The final Stim program after detector, observable, and noise expansion.
-        """
         lines = []
+
+        op_by_start_time = sorted(self.program.operations, key=lambda x: x[1])
+        idx = 0
         existing_observable_by_tag = {obs.tag: obs for obs in self.observables}
-        seen_meas = 0
-        repeat = 1
-        for instruction in self.circuit_instructions:
+        m_by_id = self.record.by_measurement_id
+        previous_start_time = 0
+        for op, start_time in op_by_start_time:
+            if start_time != previous_start_time:
+                lines.append("TICK")
+                previous_start_time = start_time
 
-            if instruction.startswith("REPEAT"):
-                repeat = int(instruction.split(" ")[1])
-            elif not instruction.startswith("    "):
-                repeat = 1
+            if op.name == "tick":
+                continue
 
-            if (
-                instruction.startswith("M") or instruction.startswith("    M")
-            ) and verbose:
-                elem = instruction.split(" ")
-                elem = [e for e in elem if e != ""]
-                num_meas = (len(elem) - 1) * repeat
-                instruction += f" # Meas {seen_meas-self.record.size} to {seen_meas-self.record.size + num_meas - 1}"
-                seen_meas += num_meas
-            lines.append(instruction)
+            if not all(isinstance(t, PhysicalQubit) for t in op.targets):
+                raise ValueError(f"Operation {op.name} has non-physical qubit targets: {op.targets}. When compiling to stim, it is expected that all qubits refers to physical qubits.")
+            lines.append(f"{op.name} {' '.join(str(t.integer_index) for t in op.targets)}")
+            if op.name in {"M", "MX", "MY", "MZ", "MRX", "MRY", "MRZ"}:
+                if not op.measurement_id:
+                    raise ValueError(f"Operation {op.name} is missing a measurement_id.")
+                self.measurement_to_index[m_by_id[op.measurement_id]] = idx
+                idx += 1
+
         for i, detector in enumerate(self.detectors):
             pre = f"""# Detector {detector.tag} includes measurements: {[m.tag for m in detector.measurements]}"""
             verb = f" - Det Idx: {i}"
@@ -109,8 +102,9 @@ class CompiledExperiment(BaseModel):
                 lines.append(l + verb)
             else:
                 lines.append(l)
-        stim_observable = []
 
+
+        stim_observable = []
         for ob in observables:
             new_ob_lops = []
             new_ob_measurements = set()

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from epic.core.experiment.noise_specification import (
+from .noise_specification import (
     NoiseApplicationMode,
     NoiseInstruction,
     NoiseSpecification,
