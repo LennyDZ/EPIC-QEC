@@ -100,8 +100,12 @@ class AutQecTransversal(CodeGadget):
         )
 
         qubits_used = list(
-            quantum_memory.node_allocation_snapshot(code.tanner_graph.variable_nodes).values()
-        ) + list(anc_for_syndrome)
+            quantum_memory.node_allocation_snapshot(
+                code.tanner_graph.variable_nodes
+            ).values()
+        ) + anc_for_syndrome
+        
+        anc_for_syndrome_map = {
             n: q for n, q in zip(code.tanner_graph.check_nodes, anc_for_syndrome)
         }
 
