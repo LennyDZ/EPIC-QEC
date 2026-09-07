@@ -1,3 +1,5 @@
+import contextlib
+import tempfile
 from typing import Dict, List, Tuple
 from uuid import UUID
 
@@ -77,41 +79,45 @@ class LRCircuit(PrimitiveImplementation[ExtractSyndrome]):
             self.split,
             f"epic_{instruction.tag or instruction.id}",
         )
-        code.LR_colouring(ancilla_optimised_colouring=False)
-        code.find_LR_residuals()
+        # lr_circuits writes its intermediate colourings/residuals/CNOT orders to
+        # "output/..." relative to the current working directory; redirect that
+        # into a throwaway temporary directory instead of littering the caller's cwd.
+        with tempfile.TemporaryDirectory() as scratch_dir, contextlib.chdir(scratch_dir):
+            code.LR_colouring(ancilla_optimised_colouring=False)
+            code.find_LR_residuals()
 
-        attempts = 100
-        BPOSD_params = {
-            "error_rate": 0.01,
-            "bp_method": "ms",
-            "max_iter": 200,
-            "osd_method": "osd_cs",
-            "osd_order": 3,
-            "ms_scaling_factor": 0  
-        }
-        num_workers = 10 
-        batch_size = 10
-        code.evaluate_residual_dists(attempts, BPOSD_params, max_workers=num_workers, batch_size=batch_size)
+            attempts = 100
+            BPOSD_params = {
+                "error_rate": 0.01,
+                "bp_method": "ms",
+                "max_iter": 200,
+                "osd_method": "osd_cs",
+                "osd_order": 3,
+                "ms_scaling_factor": 0  
+            }
+            num_workers = 10 
+            batch_size = 10
+            code.evaluate_residual_dists(attempts, BPOSD_params, max_workers=num_workers, batch_size=batch_size)
 
-        max_col = 1000
-        num_orders = 1
-        code.find_CNOT_orders(max_col, num_orders)
+            max_col = 1000
+            num_orders = 1
+            code.find_CNOT_orders(max_col, num_orders)
 
-        # The following filtering step is optional 
-        attempts = 1000
-        BPOSD_params = {
-            "error_rate": 0.01,
-            "bp_method": "ms",
-            "max_iter": 500,
-            "osd_method": "osd_cs",
-            "osd_order": 7,
-            "ms_scaling_factor": 0  
-        }
-        code.filter_orders_with_extended_distance(attempts, BPOSD_params, max_workers=10)
+            # The following filtering step is optional 
+            attempts = 1000
+            BPOSD_params = {
+                "error_rate": 0.01,
+                "bp_method": "ms",
+                "max_iter": 500,
+                "osd_method": "osd_cs",
+                "osd_order": 7,
+                "ms_scaling_factor": 0  
+            }
+            code.filter_orders_with_extended_distance(attempts, BPOSD_params, max_workers=10)
 
-        circuit = code.construct_circuit_simple(
-            rounds=instruction.rounds,
-        )
+            circuit = code.construct_circuit_simple(
+                rounds=instruction.rounds,
+            )
 
         program = QuantumProgram(name=f"LR_syndrome_extraction_{instruction.tag}")
         for qubit in node_to_qubit.values():
