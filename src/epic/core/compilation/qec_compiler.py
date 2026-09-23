@@ -4,6 +4,8 @@ from uuid import UUID
 import warnings
 
 from debug.warnings import CodeBelowDistanceWarning
+from epic.core.data_structure.quantum_program import ProgramQubit, QProgOperation
+from epic.core.visualization.quantum_program_vis import QuantumProgramVisualizer
 
 from ..qec_object import LogicalQubit, StabilizerCode, Observable, LogicalOperatorUpdate
 from ..language import QECGadget, AllocCode, CodeGadget, FreeCode, LogicGadget
@@ -31,14 +33,72 @@ class QECCompiler:
         self.ctx = CompilationContext(memory_size=self.quantum_memory_limit)
         self.primitive_compiler = PrimitiveCompiler(config=config)
 
-    def _visualize_util():
+    def _visualize_util(self):
         pass
+
+    @staticmethod
+    def _append_log(log_path: Path, markdown: str) -> None:
+        """Append a Markdown section to a compilation report."""
+        with log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write(f"{markdown.rstrip()}\n\n")
+
+    @staticmethod
+    def _display_tag(tag: str) -> str:
+        """Return a readable label for an optional gadget or primitive tag."""
+        return tag or "untagged"
+
+    @staticmethod
+    def parse_to_program(gadgets: List[QECGadget]) -> QuantumProgram:
+        program = QuantumProgram(name="Parsed_QEC_Program")
+        qubits: dict[str, ProgramQubit] = {}
+        logical_in_patches: dict[str, list[ProgramQubit]] = {}
+        for gadget in gadgets:
+            if isinstance(gadget, AllocCode):
+                logical_in_patches[gadget.code_varname] = []
+                for q in gadget.logical_qubits_varnames:
+                    qubits[q] = ProgramQubit(name=q)
+                    program.add_qubit(qubits[q])
+                    logical_in_patches[gadget.code_varname].append(qubits[q])
+                program.add_operation(QProgOperation(
+                    name="AllocCode",
+                    length=1,
+                    targets=logical_in_patches[gadget.code_varname],
+                    implementation=gadget
+                ))
+            elif isinstance(gadget, LogicGadget):
+                program.add_operation(QProgOperation(
+                    name=gadget.tag,
+                    length=1,
+                    targets=[qubits[q] for q in gadget.targets],
+                    implementation=gadget
+                ))
+                program.add_operation(
+                    QProgOperation(
+                        name=gadget.tag,
+                        length=1,
+                        targets=[
+                            qubit
+                            for target in gadget.targets
+                            for qubit in logical_in_patches[target]
+                        ],
+                        implementation=gadget,
+                    )
+                )
+            elif isinstance(gadget, FreeCode):
+                program.add_operation(QProgOperation(
+                    name=gadget.tag,
+                    length=1,
+                    targets=logical_in_patches[gadget.code_varname],
+                    implementation=gadget,
+                ))
+        return program
 
     def compile(
         self,
-        program: QuantumProgram,
+        program: QuantumProgram | List[QECGadget],
         visual_output_path: str | Path | None = None,
         show_progress: bool = False,
+        log_output_path: str | Path | None = None,
     ) -> CompiledExperiment:
         """Compile a QEC program into a concrete experiment description.
 
@@ -46,6 +106,8 @@ class QECCompiler:
             program: Ordered gadget sequence to compile.
             visual_output_path: Optional path used to emit per-primitive visualizations.
             show_progress: If true, print progress and the current gadget/primitive.
+            log_output_path: Optional Markdown file that records compilation details
+                and an image of the input program.
 
         Returns:
             The compiled experiment containing circuit instructions, detectors, and
@@ -56,6 +118,45 @@ class QECCompiler:
             list[Observable],
             list[PhysicalQubit],
         ]
+
+        log_path = Path(log_output_path) if log_output_path is not None else None
+        if log_path is not None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text("# Compilation Report\n\n", encoding="utf-8")
+
+        input_was_gadget_list = isinstance(program, list)
+        if input_was_gadget_list and all(isinstance(g, QECGadget) for g in program):
+            program = self.parse_to_program(program)
+            if log_path is not None:
+                self._append_log(
+                    log_path,
+                    "## Input\n\n"
+                    "- Source: list of `QECGadget` objects\n"
+                    "- Parsing: succeeded",
+                )
+        elif log_path is not None:
+            self._append_log(
+                log_path,
+                "## Input\n\n"
+                "- Source: `QuantumProgram`\n"
+                "- Parsing: not required",
+            )
+
+        if log_path is not None:
+            image_path = log_path.parent / f"{log_path.stem}_input_program.png"
+            QuantumProgramVisualizer.visualize(
+                program,
+                output_path=image_path,
+                title="Input QuantumProgram",
+            )
+            self._append_log(
+                log_path,
+                "### Input QuantumProgram\n\n"
+                f"![Input QuantumProgram]({image_path.name})\n\n"
+                f"- Qubits: {len(program.qubits)}\n"
+                f"- Operations: {len(program.operations)}\n"
+                f"- Depth: {program.depth}",
+            )
 
         gadgets_effect_buffer: Dict[UUID, CompiledEffect] = {}  # type: ignore
 
@@ -79,7 +180,6 @@ class QECCompiler:
                     )
 
             for operation in operations_end:
-                
                 gadgets = _validate_operation_content(operation)
 
                 for gadget in gadgets:
@@ -110,6 +210,12 @@ class QECCompiler:
                 gadgets = _validate_operation_content(operation)
 
                 for gadget in gadgets:
+                    if log_path is not None:
+                        self._append_log(
+                            log_path,
+                            f"### Gadget: {self._display_tag(gadget.tag)}\n\n"
+                            f"- Type: `{type(gadget).__name__}`",
+                        )
                     match gadget:
                         case AllocCode():
                             if gadget.target_code.d < self.distance:
@@ -127,9 +233,13 @@ class QECCompiler:
                             for q in pq_allocated:
                                 self.ctx._output_program.add_qubit(q)
 
+                            if log_path is not None:
+                                self._append_log(log_path, "- Primitives: none")
                             continue
                         case FreeCode():
                             self.ctx.unregister_code(gadget.code_varname)
+                            if log_path is not None:
+                                self._append_log(log_path, "- Primitives: none")
                             continue
                         case CodeGadget():
                             resolved_targets = self.ctx.resolve_targets_varname(
@@ -173,7 +283,18 @@ class QECCompiler:
                             raise ValueError(f"Unsupported gadget type: {type(gadget)}")
 
                     measurement_in_gadget = []
-                    gadget_primitive_length = len(primitive_code_instructions)
+                    if log_path is not None:
+                        primitive_list = "\n".join(
+                            f"{primitive_index}. `{self._display_tag(p_op.tag)}` "
+                            f"(`{type(p_op).__name__}`)"
+                            for primitive_index, p_op in enumerate(
+                                primitive_code_instructions, start=1
+                            )
+                        )
+                        self._append_log(
+                            log_path,
+                            f"- Primitives:\n{primitive_list or '  - none'}",
+                        )
                     for primitive_index, p_op in enumerate(
                         primitive_code_instructions, start=1
                     ):
@@ -200,4 +321,22 @@ class QECCompiler:
                         physical_qubits_used,
                     )
 
-        return self.ctx.to_compiled_experiment()
+        compiled_experiment = self.ctx.to_compiled_experiment()
+        if log_path is not None:
+            observable_tags = "\n".join(
+                f"  - `{self._display_tag(observable.tag)}`"
+                for observable in compiled_experiment.observables
+            ) or "  - none"
+            self._append_log(
+                log_path,
+                "## Output Summary\n\n"
+                f"- Instructions: {len(compiled_experiment.program.operations)}\n"
+                f"- Physical qubits: {len(compiled_experiment.program.qubits)}\n"
+                f"- Measurements: {len(compiled_experiment.record.view().measurements())}\n"
+                f"- Detectors: {len(compiled_experiment.detectors)}\n"
+                f"- Observables: {len(compiled_experiment.observables)}\n"
+                "- Observable tags:\n"
+                + observable_tags,
+            )
+
+        return compiled_experiment

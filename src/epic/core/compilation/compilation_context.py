@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple
+from epic.core.data_structure.physical_qubit import PhysicalQubit
 from epic.core.data_structure.quantum_program import QuantumProgram
 
 from types import MappingProxyType
@@ -138,7 +139,9 @@ class CompilationContext:
         else:
             self._detectors.append(detector)
 
-    def add_circuit_operation(self, instruction: QProgOperation | List[QProgOperation] | QuantumProgram):
+    def add_circuit_operation(
+        self, instruction: QProgOperation | List[QProgOperation] | QuantumProgram
+    ):
         """Append one circuit instruction or a list of instructions."""
         if isinstance(instruction, list):
             self._output_program.add_operations(instruction)
@@ -163,7 +166,7 @@ class CompilationContext:
 
     def register_code(
         self, lqb_name: List[str], code: StabilizerCode, code_varname: str
-    ):
+    ) -> List[PhysicalQubit]:
         """
         Register a code, its logical qubits, and their logical operators.
         Allocate physical qubits for the data qubits nodes
@@ -174,6 +177,7 @@ class CompilationContext:
 
         self._uuid_memory[code_copy.id] = code_copy
         self._naming_registry[code_varname] = code_copy.id
+
         for idx, qubit in enumerate(code_copy.logical_qubits):
             self._uuid_memory[qubit.id] = qubit
             self._naming_registry[lqb_name[idx]] = qubit.id
@@ -185,7 +189,6 @@ class CompilationContext:
             nodes=list(code_copy.tanner_graph.variable_nodes)
         )
         return physical_qubits
-
 
     def unregister_code(self, code_varname: str):
         """Remove a registered code and all objects derived from it."""
