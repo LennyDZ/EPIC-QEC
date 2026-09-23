@@ -72,14 +72,18 @@ class QECCompiler:
                     targets=[qubits[q] for q in gadget.targets],
                     implementation=gadget
                 ))
-            elif isinstance(gadget, CodeGadget):
-                for target in gadget.targets:
-                    program.add_operation(QProgOperation(
+                program.add_operation(
+                    QProgOperation(
                         name=gadget.tag,
                         length=1,
-                        targets=logical_in_patches[target],
-                        implementation=gadget
-                    ))
+                        targets=[
+                            qubit
+                            for target in gadget.targets
+                            for qubit in logical_in_patches[target]
+                        ],
+                        implementation=gadget,
+                    )
+                )
             elif isinstance(gadget, FreeCode):
                 program.add_operation(QProgOperation(
                     name=gadget.tag,
