@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.data_structure.pauli import PauliChar
@@ -24,6 +24,8 @@ class RSCSurgery(PPM):
     """
     A gadget representing the surgery of two logical qubits in a stabilizer code using the RSC protocol.
     """
+
+    tag: str = Field(default="rsc_surgery", frozen=True)
 
     @field_validator("product_to_measure")
     def validate_product_to_measure(cls, v):
@@ -312,6 +314,7 @@ class RSCSurgery(PPM):
             gates=(
                 ["RX"] if merge_type == PauliChar.Z else ["RZ"]
             ),  # Init in dual of the merge type.
+            tag=f"rsc_surgery_init_ancilla_{self.tag or 'untagged'}",
         )
         merged_syndrome = ExtractSyndrome(
             target=merged_system,

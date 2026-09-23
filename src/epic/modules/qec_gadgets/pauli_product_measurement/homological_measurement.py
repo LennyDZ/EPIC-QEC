@@ -8,6 +8,8 @@ import xgi
 import numpy as np
 import ldpc.mod2 as m2a
 
+from pydantic import Field
+
 from epic.core.data_structure.physical_qubit import PhysicalQubit
 from epic.core.visualization.tanner_graph_vis import TannerGraphVisualizer as TGV
 from epic.core.compilation.quantum_memory import QuantumMemory
@@ -39,6 +41,8 @@ class HomologicalMeasurement(PPM):
 
     Ref: DOI: 10.1103/PhysRevX.15.021088
     """
+
+    tag: str = Field(default="homological_measurement", frozen=True)
 
     @staticmethod
     def _greedy_to_cheeger_of_one(matrix: np.ndarray) -> np.ndarray:
@@ -532,6 +536,7 @@ class HomologicalMeasurement(PPM):
             gates=(
                 ["RX"] if ptype == PauliChar.Z else ["RZ"]
             ),  # Init in dual of the merge type.
+            tag=f"hm_init_ancilla_{self.tag or 'untagged'}",
         )
 
         ptype_anc_syd = ExtractSyndrome(

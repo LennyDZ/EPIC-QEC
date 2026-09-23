@@ -20,6 +20,7 @@ class InitCode(CodeGadget):
     initial_state: PauliEigenState = Field(
         description="The initial state of the code. "
     )
+    tag: str = Field(default="init_code", frozen=True)
 
     def compile(
         self,
@@ -71,6 +72,7 @@ class InitCode(CodeGadget):
                     physical_ancilla_qubits=ancilla_locked[code.id],
                     target_nodes=code.tanner_graph.variable_nodes,  # type: ignore
                     gates=gates,
+                    tag=f"init_{code.name}",
                 )
             )
             primitives.append(
@@ -82,6 +84,7 @@ class InitCode(CodeGadget):
                     physical_ancilla_qubits=ancilla_locked[code.id],
                     distance=objective_distance,
                     rounds=objective_distance,
+                    tag=f"init_syndrome_{code.name}",
                 )
             )
 

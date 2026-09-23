@@ -1,6 +1,8 @@
 from typing import List, Dict, Tuple
 from uuid import UUID
 
+from pydantic import Field
+
 from epic.core.compilation.measurement_record import MeasurementRecordView
 from epic.core.compilation.quantum_memory import QuantumMemory
 from epic.core.language.qec_gadget import CodeGadget
@@ -18,6 +20,8 @@ class TransversalH(CodeGadget):
     """
     Transversal implementation of the logical H gate for codes with Hx = Hz.
     """
+
+    tag: str = Field(default="transversal_h", frozen=True)
 
     def compile(
         self,

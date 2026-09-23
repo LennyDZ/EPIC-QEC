@@ -19,6 +19,7 @@ from epic.core.qec_primitives.interfaces.qec_primitive import QECPrimitive
 class AutQecTransversal(CodeGadget):
     """A gadget that applies an automorphism of the code, as specified by the autqec automorphism package."""
 
+    tag: str = Field(default="autqec_transversal", frozen=True)
     single_qubit_gates: List[Tuple[str, TannerNode]] = Field(
         description="A list of (gate, qubit_index) pairs specifying the circuit implementing the automorphism."
     )

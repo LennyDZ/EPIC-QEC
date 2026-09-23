@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
 from uuid import UUID
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from epic.core.compilation import QuantumMemory
 from epic.core.data_structure import PauliChar, TannerGraph, PhysicalQubit
@@ -14,6 +14,7 @@ class NaiveLogicalMeasurement(LogicGadget):
 
     basis: List[PauliChar] = [PauliChar.Z]
     free_qubits: bool = False
+    tag: str = Field(default="naive_logical_measurement", frozen=True)
 
     @model_validator(mode="after")
     def validate_basis_len(self):
